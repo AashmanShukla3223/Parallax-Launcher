@@ -18,14 +18,16 @@ class HapticEngine(context: Context, private val enabled: () -> Boolean = { true
 
     private fun play(predefined: Int, fallbackMs: Long, amplitude: Int) {
         if (!enabled()) return
-        val v = vibrator ?: return
-        if (!v.hasVibrator()) return
-        val effect = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            VibrationEffect.createPredefined(predefined)
-        } else {
-            VibrationEffect.createOneShot(fallbackMs, amplitude)
+        runCatching {
+            val v = vibrator ?: return
+            if (!v.hasVibrator()) return
+            val effect = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                VibrationEffect.createPredefined(predefined)
+            } else {
+                VibrationEffect.createOneShot(fallbackMs, amplitude)
+            }
+            v.vibrate(effect)
         }
-        v.vibrate(effect)
     }
 
     /** Dial detent. */
