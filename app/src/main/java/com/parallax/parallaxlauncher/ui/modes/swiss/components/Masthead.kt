@@ -74,7 +74,7 @@ fun Masthead(batteryMv: Int, headline: Headline?, wireEnabled: Boolean, onEnable
                     style = TextStyle(fontFamily = palette.font, fontWeight = FontWeight.Black, fontSize = 11.sp, color = accent),
                 )
                 Text(
-                    "${headline.source.uppercase()}: ${headline.title}",
+                    "${headline.sender.uppercase()}: ${headline.text}",
                     style = TextStyle(fontFamily = palette.font, fontSize = 11.sp, color = Ink),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
