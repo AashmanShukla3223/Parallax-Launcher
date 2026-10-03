@@ -31,8 +31,38 @@ object CallManager {
     private var muted = false
     private var speaker = false
 
+    private var ringtone: android.media.Ringtone? = null
+
+    internal fun startRinging(ctx: android.content.Context) {
+        stopRinging()
+        val pref = ctx.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+            .getString("ringtoneUri", "") ?: ""
+        if (pref == "silent") return
+        val uri = if (pref.isEmpty()) {
+            android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_RINGTONE)
+        } else android.net.Uri.parse(pref)
+        ringtone = runCatching {
+            android.media.RingtoneManager.getRingtone(ctx.applicationContext, uri)?.also {
+                it.audioAttributes = android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+                it.isLooping = true
+                it.play()
+            }
+        }.getOrNull()
+    }
+
+    internal fun stopRinging() {
+        runCatching { ringtone?.stop() }
+        ringtone = null
+    }
+
     private val callback = object : Call.Callback() {
-        override fun onStateChanged(call: Call, state: Int) = publish(call)
+        override fun onStateChanged(call: Call, state: Int) {
+            if (state != Call.STATE_RINGING) stopRinging()
+            publish(call)
+        }
         override fun onDetailsChanged(call: Call, details: Call.Details) = publish(call)
     }
 
@@ -44,6 +74,7 @@ object CallManager {
     }
 
     internal fun detach(call: Call) {
+        stopRinging()
         if (current === call) {
             call.unregisterCallback(callback)
             val last = _call.value
@@ -100,6 +131,7 @@ class RazrInCallService : InCallService() {
 
     override fun onCallAdded(call: Call) {
         CallManager.attach(call)
+        if (call.state == Call.STATE_RINGING) CallManager.startRinging(this)
         // Bring the launcher forward so incoming calls are visible/answerable.
         packageManager.getLaunchIntentForPackage(packageName)?.let {
             it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)

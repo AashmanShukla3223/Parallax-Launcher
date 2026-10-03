@@ -35,6 +35,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.Locale
+import android.content.Intent
+import androidx.compose.runtime.remember
 import com.parallax.parallaxlauncher.core.settings.Settings
 import com.parallax.parallaxlauncher.ui.theme.AccentColor
 import com.parallax.parallaxlauncher.ui.theme.LocalParallaxPalette
@@ -68,6 +70,28 @@ fun SettingsScreen(
     val palette = LocalParallaxPalette.current
     val accent = palette.accent
     val accentDim = palette.accentDim
+
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val ringtoneLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { res ->
+        if (res.resultCode == android.app.Activity.RESULT_OK) {
+            @Suppress("DEPRECATION")
+            val picked: android.net.Uri? =
+                res.data?.getParcelableExtra(android.media.RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+            onChange { it.copy(ringtoneUri = picked?.toString() ?: "silent") }
+        }
+    }
+    val ringtoneTitle = remember(settings.ringtoneUri) {
+        when (settings.ringtoneUri) {
+            "" -> "SYSTEM DEFAULT"
+            "silent" -> "SILENT"
+            else -> runCatching {
+                android.media.RingtoneManager.getRingtone(ctx, android.net.Uri.parse(settings.ringtoneUri))
+                    .getTitle(ctx).uppercase(Locale.ROOT)
+            }.getOrDefault("CUSTOM")
+        }
+    }
 
     fun mono(size: Int, color: Color = accent, bold: Boolean = false) = TextStyle(
         fontFamily = palette.font, fontSize = size.sp, color = color,
@@ -208,6 +232,19 @@ fun SettingsScreen(
         ) { v ->
             onChange { it.copy(callTariffRate = (v * 10).roundToInt() / 10f) }
         }
+
+        Text("RINGTONE: $ringtoneTitle", style = mono(13))
+        Key("CHOOSE RINGTONE (PHONE'S SETTINGS)", onClick = {
+            val cur = settings.ringtoneUri.takeIf { it.isNotEmpty() && it != "silent" }?.let(android.net.Uri::parse)
+            val i = Intent(android.media.RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+                putExtra(android.media.RingtoneManager.EXTRA_RINGTONE_TYPE, android.media.RingtoneManager.TYPE_RINGTONE)
+                putExtra(android.media.RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                putExtra(android.media.RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, true)
+                putExtra(android.media.RingtoneManager.EXTRA_RINGTONE_TITLE, "Incoming call ringtone")
+                putExtra(android.media.RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, cur)
+            }
+            runCatching { ringtoneLauncher.launch(i) }
+        }, style = mono(13, accent, true))
 
         Section("SYSTEM", mono(11, accentDim, true))
         Text(if (isDefaultHome) "HOME APP: ACTIVE" else "HOME APP: STANDBY", style = mono(12, accentDim))

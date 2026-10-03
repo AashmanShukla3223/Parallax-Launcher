@@ -26,6 +26,7 @@ data class Settings(
     // Mode 7 RAZR V3i Call Tariff
     val callTariffRate: Float = 1.0f,
     val callCurrencyIndex: Int = 0, // 0 = ₹ (Rupees), 1 = p (Paise), 2 = $ (Dollars), 3 = ¢ (Cents)
+    val ringtoneUri: String = "", // "" = system default ringtone, "silent" = none
     // Global
     val showModeChip: Boolean = true,
 )
@@ -52,6 +53,7 @@ class SettingsRepository(context: Context) {
             grid = prefs.getBoolean("grid", d.grid),
             callTariffRate = prefs.getFloat("callTariffRate", d.callTariffRate),
             callCurrencyIndex = prefs.getInt("callCurrencyIndex", d.callCurrencyIndex),
+            ringtoneUri = prefs.getString("ringtoneUri", d.ringtoneUri) ?: "",
             showModeChip = prefs.getBoolean("showModeChip", d.showModeChip),
         )
     }
@@ -74,6 +76,7 @@ class SettingsRepository(context: Context) {
             .putBoolean("grid", s.grid)
             .putFloat("callTariffRate", s.callTariffRate)
             .putInt("callCurrencyIndex", s.callCurrencyIndex)
+            .putString("ringtoneUri", s.ringtoneUri)
             .putBoolean("showModeChip", s.showModeChip)
             .apply()
     }
