@@ -26,12 +26,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.util.Locale
 import com.parallax.parallaxlauncher.core.settings.Settings
 import com.parallax.parallaxlauncher.ui.theme.AccentColor
 import com.parallax.parallaxlauncher.ui.theme.LocalParallaxPalette
@@ -47,6 +50,8 @@ private val styles = listOf(
     3 to "SWISS BROADSHEET",
     4 to "CYBERDECK HUD",
     5 to "CINECAM RANGEFINDER",
+    6 to "TELECOM ROTARY DIAL",
+    7 to "MOTOROLA RAZR V3i",
 )
 
 @Composable
@@ -172,6 +177,37 @@ fun SettingsScreen(
         }
         ToggleRow("HISTOGRAM", settings.histogram, accent, accentDim, mono(13)) { v -> onChange { it.copy(histogram = v) } }
         ToggleRow("RULE-OF-THIRDS GRID", settings.grid, accent, accentDim, mono(13)) { v -> onChange { it.copy(grid = v) } }
+
+        Section("07 MOTOROLA RAZR V3i TARIFF", mono(11, accentDim, true))
+        val currencies = listOf("₹ (Rupees)", "p (Paise)", "$ (Dollars)", "¢ (Cents)")
+        Text("CALL BILLING CURRENCY", style = mono(13))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            currencies.forEachIndexed { idx, name ->
+                val sym = name.split(" ")[0]
+                val selected = (settings.callCurrencyIndex == idx)
+                Text(
+                    text = sym,
+                    style = mono(12, if (selected) Color.Black else Color.White, true),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(if (selected) accent else Steel)
+                        .clickable { onChange { it.copy(callCurrencyIndex = idx) } }
+                        .padding(vertical = 8.dp),
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+        SliderRow(
+            label = "TALK TIME RATE / MIN",
+            display = "${currencies.getOrElse(settings.callCurrencyIndex) { "₹" }.split(" ")[0]} " + String.format(Locale.ROOT, "%.2f", settings.callTariffRate),
+            value = settings.callTariffRate,
+            range = 0.1f..10.0f,
+            accent = accent,
+            style = mono(13)
+        ) { v ->
+            onChange { it.copy(callTariffRate = (v * 10).roundToInt() / 10f) }
+        }
 
         Section("SYSTEM", mono(11, accentDim, true))
         Text(if (isDefaultHome) "HOME APP: ACTIVE" else "HOME APP: STANDBY", style = mono(12, accentDim))

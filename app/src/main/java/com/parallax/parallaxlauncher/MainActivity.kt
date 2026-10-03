@@ -41,7 +41,9 @@ import com.parallax.parallaxlauncher.ui.modes.cinecam.CineCamScreen
 import com.parallax.parallaxlauncher.ui.modes.cinecam.ShutterEvents
 import com.parallax.parallaxlauncher.ui.modes.cyberdeck.CyberdeckScreen
 import com.parallax.parallaxlauncher.ui.modes.industrial.IndustrialRigScreen
+import com.parallax.parallaxlauncher.ui.modes.razr.RazrV3iScreen
 import com.parallax.parallaxlauncher.ui.modes.swiss.SwissBroadsheetScreen
+import com.parallax.parallaxlauncher.ui.modes.telecom.TelecomRotaryScreen
 import com.parallax.parallaxlauncher.ui.onboarding.OnboardingScreen
 import com.parallax.parallaxlauncher.ui.settings.SettingsScreen
 import com.parallax.parallaxlauncher.ui.theme.ParallaxLauncherTheme
@@ -124,6 +126,8 @@ class MainActivity : ComponentActivity() {
                             3 -> SwissBroadsheetScreen(repo, telemetry, haptics)
                             4 -> CyberdeckScreen(repo, telemetry, haptics, s.crt)
                             5 -> CineCamScreen(repo, sensors, telemetry, haptics, s)
+                            6 -> TelecomRotaryScreen(repo, haptics)
+                            7 -> RazrV3iScreen(repo, telemetry, haptics, s)
                             else -> IndustrialRigScreen(repo, telemetry, haptics, s.detentDeg)
                         }
                         Row(
@@ -132,7 +136,7 @@ class MainActivity : ComponentActivity() {
                             if (s.showModeChip) {
                                 Chip("MODE ${s.mode}") {
                                     haptics.click()
-                                    settingsRepo.update { it.copy(mode = it.mode % 5 + 1) }
+                                    settingsRepo.update { it.copy(mode = it.mode % 7 + 1) }
                                 }
                             }
                             Chip("CFG") { haptics.click(); showSettings = true }

@@ -23,6 +23,9 @@ data class Settings(
     val cineAspect: Int = 0, // 0 = 2.39:1, 1 = 3:2
     val histogram: Boolean = true,
     val grid: Boolean = true,
+    // Mode 7 RAZR V3i Call Tariff
+    val callTariffRate: Float = 1.0f,
+    val callCurrencyIndex: Int = 0, // 0 = ₹ (Rupees), 1 = p (Paise), 2 = $ (Dollars), 3 = ¢ (Cents)
     // Global
     val showModeChip: Boolean = true,
 )
@@ -35,7 +38,7 @@ class SettingsRepository(context: Context) {
     private fun load(): Settings {
         val d = Settings()
         return Settings(
-            mode = prefs.getInt("mode", d.mode).coerceIn(1, 5),
+            mode = prefs.getInt("mode", d.mode).coerceIn(1, 7),
             haptics = prefs.getBoolean("haptics", d.haptics),
             accentColorId = prefs.getInt("accentColorId", d.accentColorId),
             backgroundColorId = prefs.getInt("backgroundColorId", d.backgroundColorId),
@@ -47,6 +50,8 @@ class SettingsRepository(context: Context) {
             cineAspect = prefs.getInt("cineAspect", d.cineAspect),
             histogram = prefs.getBoolean("histogram", d.histogram),
             grid = prefs.getBoolean("grid", d.grid),
+            callTariffRate = prefs.getFloat("callTariffRate", d.callTariffRate),
+            callCurrencyIndex = prefs.getInt("callCurrencyIndex", d.callCurrencyIndex),
             showModeChip = prefs.getBoolean("showModeChip", d.showModeChip),
         )
     }
@@ -67,6 +72,8 @@ class SettingsRepository(context: Context) {
             .putInt("cineAspect", s.cineAspect)
             .putBoolean("histogram", s.histogram)
             .putBoolean("grid", s.grid)
+            .putFloat("callTariffRate", s.callTariffRate)
+            .putInt("callCurrencyIndex", s.callCurrencyIndex)
             .putBoolean("showModeChip", s.showModeChip)
             .apply()
     }
