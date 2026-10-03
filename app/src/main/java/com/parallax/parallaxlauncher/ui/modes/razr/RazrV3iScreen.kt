@@ -41,6 +41,18 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import android.Manifest
+import android.app.role.RoleManager
+import android.content.pm.PackageManager
+import android.media.AudioManager
+import android.os.Build
+import android.os.Bundle
+import android.telecom.Call
+import android.telecom.TelecomManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import com.parallax.parallaxlauncher.core.telecom.CallManager
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -95,28 +107,27 @@ fun RazrV3iScreen(
     var dialedBuffer by rememberSaveable { mutableStateOf("") }
     var listTitle by rememberSaveable { mutableStateOf("Games & Apps") }
 
-    // In-Call Telephony State
-    var connectedNumber by rememberSaveable { mutableStateOf("") }
+    // ---- Real telephony state (fed by RazrInCallService via CallManager) ----
+    val live by CallManager.call.collectAsState()
+    val connectedNumber = live?.number.orEmpty()
+    val isMuted = live?.muted ?: false
+    val isOnHold = live?.onHold ?: false
+    val isSpeaker = live?.speaker ?: false
+    val isIncomingRinging = live?.state == Call.STATE_RINGING
+    val callStatusText = when (live?.state) {
+        Call.STATE_RINGING -> "INCOMING CALL"
+        Call.STATE_DIALING, Call.STATE_CONNECTING, Call.STATE_NEW -> "CALLING..."
+        Call.STATE_HOLDING -> "CALL ON HOLD"
+        Call.STATE_ACTIVE -> "CONNECTED"
+        else -> "CONNECTED"
+    }
     var callSeconds by rememberSaveable { mutableIntStateOf(0) }
-    var isMuted by rememberSaveable { mutableStateOf(false) }
-    var isOnHold by rememberSaveable { mutableStateOf(false) }
-    var isSpeaker by rememberSaveable { mutableStateOf(false) }
     var callVolume by rememberSaveable { mutableIntStateOf(7) } // 1..10
     var lastCallSummary by remember { mutableStateOf<String?>(null) }
+    var lastDialed by rememberSaveable { mutableStateOf("") }
+    var pendingNumber by remember { mutableStateOf<String?>(null) }
 
     val listState = rememberLazyListState()
-
-    // Talk Time Clock
-    LaunchedEffect(viewState, isOnHold) {
-        if (viewState == RazrViewState.IN_CALL) {
-            while (true) {
-                delay(1000)
-                if (!isOnHold) {
-                    callSeconds++
-                }
-            }
-        }
-    }
 
     LaunchedEffect(selectedAppIndex) {
         if (apps.isNotEmpty()) {
@@ -137,29 +148,137 @@ fun RazrV3iScreen(
         (callSeconds / 60.0) * settings.callTariffRate
     }
 
-    fun startCall(number: String) {
-        haptics.thud()
-        tonePlayer.playRingback()
-        connectedNumber = if (number.isNotBlank()) number else "+91 98200 12345"
-        callSeconds = 0
-        isMuted = false
-        isOnHold = false
-        isSpeaker = false
-        dialedBuffer = ""
+    fun placeRealCall(number: String) {
+        val clean = number.filter { it.isDigit() || it == '+' || it == '*' || it == '#' }
+        if (clean.isEmpty()) return
+        lastDialed = clean
         lastCallSummary = null
+        val tm = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
+        runCatching {
+            tm.placeCall(Uri.fromParts("tel", clean, null), Bundle())
+        }.onFailure {
+            lastCallSummary = "CALL FAILED • CHECK SIM / PERMISSIONS"
+        }
+        dialedBuffer = ""
         viewState = RazrViewState.IN_CALL
     }
 
-    fun endCall() {
-        tonePlayer.playBusy()
+    fun requestDialerRole(launch: (Intent) -> Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val rm = context.getSystemService(RoleManager::class.java)
+            if (rm.isRoleAvailable(RoleManager.ROLE_DIALER) && !rm.isRoleHeld(RoleManager.ROLE_DIALER)) {
+                launch(rm.createRequestRoleIntent(RoleManager.ROLE_DIALER))
+            }
+        }
+    }
+
+    val roleLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        pendingNumber?.let { placeRealCall(it); pendingNumber = null }
+    }
+
+    val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { res ->
+        if (res[Manifest.permission.CALL_PHONE] == true) {
+            requestDialerRole { roleLauncher.launch(it) }
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                pendingNumber?.let { placeRealCall(it); pendingNumber = null }
+            }
+        } else {
+            pendingNumber = null
+            lastCallSummary = "CALL PERMISSION DENIED"
+        }
+    }
+
+    fun hasCallPermission() =
+        ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED
+
+    fun isDefaultDialer(): Boolean {
+        val tm = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
+        return tm.defaultDialerPackage == context.packageName
+    }
+
+    fun startCall(number: String) {
         haptics.thud()
-        val mm = callSeconds / 60
-        val ss = callSeconds % 60
-        val dur = String.format(Locale.ROOT, "%02d:%02d", mm, ss)
-        val costStr = String.format(Locale.ROOT, "%.2f", callCost)
-        lastCallSummary = "ENDED • DURATION: $dur • CHARGED: $currencySymbol$costStr"
-        dialedBuffer = ""
-        viewState = RazrViewState.STANDBY
+        val target = number.ifBlank { lastDialed }
+        if (target.isBlank()) { tonePlayer.playRazrChirp(); return }
+        if (!hasCallPermission()) {
+            pendingNumber = target
+            permLauncher.launch(
+                arrayOf(
+                    Manifest.permission.CALL_PHONE,
+                    Manifest.permission.READ_PHONE_STATE,
+                    Manifest.permission.ANSWER_PHONE_CALLS,
+                )
+            )
+            return
+        }
+        if (!isDefaultDialer() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            pendingNumber = target
+            requestDialerRole { roleLauncher.launch(it) }
+            // If the role dialog isn't shown (already decided), fall through to place anyway.
+            val rm = context.getSystemService(RoleManager::class.java)
+            if (!rm.isRoleAvailable(RoleManager.ROLE_DIALER)) { pendingNumber = null; placeRealCall(target) }
+            return
+        }
+        placeRealCall(target)
+    }
+
+    fun endCall() {
+        haptics.thud()
+        if (isIncomingRinging) CallManager.reject() else CallManager.hangUp()
+    }
+
+    // Ask for permissions + Dialer role when Mode 7 opens so incoming calls work immediately.
+    LaunchedEffect(Unit) {
+        if (!hasCallPermission()) {
+            permLauncher.launch(
+                arrayOf(
+                    Manifest.permission.CALL_PHONE,
+                    Manifest.permission.READ_PHONE_STATE,
+                    Manifest.permission.ANSWER_PHONE_CALLS,
+                )
+            )
+        } else if (!isDefaultDialer()) {
+            requestDialerRole { roleLauncher.launch(it) }
+        }
+    }
+
+    // Talk-time clock derived from the system's real connect timestamp.
+    LaunchedEffect(live?.connectTimeMillis, live?.state) {
+        val l = live ?: return@LaunchedEffect
+        if (l.connectTimeMillis > 0L && l.state != Call.STATE_DISCONNECTED) {
+            while (true) {
+                callSeconds = ((System.currentTimeMillis() - l.connectTimeMillis) / 1000L).toInt().coerceAtLeast(0)
+                delay(500)
+            }
+        } else if (l.state == Call.STATE_RINGING || l.state == Call.STATE_DIALING || l.state == Call.STATE_CONNECTING) {
+            callSeconds = 0
+        }
+    }
+
+    // Drive the screen from real call state (incoming calls pop the call screen automatically).
+    LaunchedEffect(live?.state) {
+        val l = live
+        if (l == null) return@LaunchedEffect
+        if (l.state == Call.STATE_DISCONNECTED) {
+            tonePlayer.playBusy()
+            val dur = String.format(Locale.ROOT, "%02d:%02d", callSeconds / 60, callSeconds % 60)
+            val costStr = String.format(Locale.ROOT, "%.2f", callCost)
+            lastCallSummary = "ENDED • DURATION: $dur • CHARGED: $currencySymbol$costStr"
+            CallManager.clearFinished()
+            dialedBuffer = ""
+            viewState = RazrViewState.STANDBY
+        } else {
+            viewState = RazrViewState.IN_CALL
+        }
+    }
+
+    // Map the 1..10 earpiece volume onto the real voice-call stream.
+    LaunchedEffect(callVolume) {
+        runCatching {
+            val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            val max = am.getStreamMaxVolume(AudioManager.STREAM_VOICE_CALL)
+            am.setStreamVolume(AudioManager.STREAM_VOICE_CALL, (callVolume * max / 10).coerceAtLeast(1), 0)
+        }
     }
 
     fun openMessages() {
@@ -199,7 +318,7 @@ fun RazrV3iScreen(
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
         }
         runCatching { context.startActivity(intent) }.onFailure {
-            startCall("+91 98200 12345")
+            tonePlayer.playRazrChirp()
         }
     }
 
@@ -214,8 +333,9 @@ fun RazrV3iScreen(
     fun handleDialKey(char: Char) {
         haptics.click()
         if (viewState == RazrViewState.IN_CALL) {
-            // In-call DTMF touch tones
+            // In-call DTMF: sent to the far end through the real call
             tonePlayer.playDtmf(char)
+            if (char != 'C') CallManager.dtmf(char)
             return
         }
 
@@ -446,7 +566,7 @@ fun RazrV3iScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = if (isOnHold) "CALL ON HOLD" else "CONNECTED",
+                                    text = callStatusText,
                                     fontFamily = FontFamily.Monospace,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Black,
@@ -673,7 +793,7 @@ fun RazrV3iScreen(
             onCenter = {
                 when (viewState) {
                     RazrViewState.IN_CALL -> {
-                        isOnHold = !isOnHold
+                        CallManager.hold(!isOnHold)
                         tonePlayer.playRazrChirp()
                     }
                     RazrViewState.STANDBY -> {
@@ -740,7 +860,7 @@ fun RazrV3iScreen(
             onSoftLeft = {
                 when (viewState) {
                     RazrViewState.IN_CALL -> {
-                        isMuted = !isMuted
+                        CallManager.mute(!isMuted)
                         tonePlayer.playRazrChirp()
                     }
                     RazrViewState.STANDBY -> {
@@ -781,7 +901,7 @@ fun RazrV3iScreen(
             onSoftRight = {
                 when (viewState) {
                     RazrViewState.IN_CALL -> {
-                        isSpeaker = !isSpeaker
+                        CallManager.speaker(!isSpeaker)
                         tonePlayer.playRazrChirp()
                     }
                     RazrViewState.STANDBY -> {
@@ -801,14 +921,13 @@ fun RazrV3iScreen(
                 }
             },
             onCall = {
-                if (viewState == RazrViewState.IN_CALL) {
-                    // Flash hold
-                    isOnHold = !isOnHold
-                    tonePlayer.playRazrChirp()
-                } else if (viewState == RazrViewState.DIALING && dialedBuffer.isNotEmpty()) {
-                    startCall(dialedBuffer)
-                } else {
-                    startCall("+91 73768 54811")
+                when {
+                    isIncomingRinging -> { haptics.thud(); CallManager.answer() }
+                    viewState == RazrViewState.IN_CALL -> {
+                        CallManager.hold(!isOnHold)
+                        tonePlayer.playRazrChirp()
+                    }
+                    else -> startCall(dialedBuffer)
                 }
             },
             onEnd = {
