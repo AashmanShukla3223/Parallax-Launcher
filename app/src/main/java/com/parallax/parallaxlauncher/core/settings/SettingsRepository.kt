@@ -1,6 +1,7 @@
 package com.parallax.parallaxlauncher.core.settings
 
 import android.content.Context
+import com.parallax.parallaxlauncher.ui.modes.razr.RazrSkin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,6 +28,12 @@ data class Settings(
     val callTariffRate: Float = 1.0f,
     val callCurrencyIndex: Int = 0, // 0 = ₹ (Rupees), 1 = p (Paise), 2 = $ (Dollars), 3 = ¢ (Cents)
     val ringtoneUri: String = "", // "" = system default ringtone, "silent" = none
+    // Mode 7 RAZR V3i Hardware / Personalize
+    val razrSkin: RazrSkin = RazrSkin.DARK_QUARTZ,
+    val razrRingStyleIndex: Int = 0, // 0 = Loud, 1 = Soft, 2 = Vibrate, 3 = Vibe & Ring, 4 = Vibe then Ring, 5 = Silent
+    val razrUnlockCode: String = "1234", // 4-digit unlock code, per the V3i manual
+    val razrVoicemailNumber: String = "*123",
+    val razrWallpaperIndex: Int = 0,
     // Global
     val showModeChip: Boolean = true,
 )
@@ -54,6 +61,16 @@ class SettingsRepository(context: Context) {
             callTariffRate = prefs.getFloat("callTariffRate", d.callTariffRate),
             callCurrencyIndex = prefs.getInt("callCurrencyIndex", d.callCurrencyIndex),
             ringtoneUri = prefs.getString("ringtoneUri", d.ringtoneUri) ?: "",
+            razrSkin = RazrSkin.entries.getOrElse(
+                prefs.getInt("razrSkin", d.razrSkin.ordinal),
+            ) { d.razrSkin },
+            razrRingStyleIndex = prefs.getInt("razrRingStyleIndex", d.razrRingStyleIndex)
+                .coerceIn(0, 5),
+            razrUnlockCode = prefs.getString("razrUnlockCode", d.razrUnlockCode) ?: d.razrUnlockCode,
+            razrVoicemailNumber = prefs.getString("razrVoicemailNumber", d.razrVoicemailNumber)
+                ?: d.razrVoicemailNumber,
+            razrWallpaperIndex = prefs.getInt("razrWallpaperIndex", d.razrWallpaperIndex)
+                .coerceIn(0, 3),
             showModeChip = prefs.getBoolean("showModeChip", d.showModeChip),
         )
     }
@@ -77,6 +94,11 @@ class SettingsRepository(context: Context) {
             .putFloat("callTariffRate", s.callTariffRate)
             .putInt("callCurrencyIndex", s.callCurrencyIndex)
             .putString("ringtoneUri", s.ringtoneUri)
+            .putInt("razrSkin", s.razrSkin.ordinal)
+            .putInt("razrRingStyleIndex", s.razrRingStyleIndex)
+            .putString("razrUnlockCode", s.razrUnlockCode)
+            .putString("razrVoicemailNumber", s.razrVoicemailNumber)
+            .putInt("razrWallpaperIndex", s.razrWallpaperIndex)
             .putBoolean("showModeChip", s.showModeChip)
             .apply()
     }

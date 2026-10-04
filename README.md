@@ -45,6 +45,36 @@ An enthusiast Android launcher built with **Jetpack Compose**, featuring 5 disti
 
 ---
 
+### 07 · MOTOROLA RAZR V3i CLAMSHELL
+- **Working Flip Hinge**: Tap the hinge to open or close the clamshell. Closing it hands the display over to the 96 x 80 external CSTN panel; opening it restores the 2.2" 176 x 220 internal TFT.
+- **Pixel-Perfect Panels**: Both screens render at their true aspect ratio with a drawn pixel lattice, so type reads like a 2005-era LCD rather than modern text.
+- **Laser-Etched Keypad**: Electric-blue groove network traced across the deck exactly as on the handset, plus the moulded four-way rocker, centre-select, green send and red power keys, and the real 12-key layout.
+- **Authentic Status Bar**: Signal bars, GPRS, roam, message, ring-style and battery indicators, per page 46 of the V3i user guide.
+- **4-Digit Unlock Code**: Default `1234` as documented in the manual, entered on the keypad.
+- **Ring Styles**: Loud / Soft / Vibrate / Vibe & Ring / Vibe then Ring / Silent, cycled with the rocker like the original.
+- **Four Quartz Finishes**: Dark, Silver, Blue and Rose — recolours the whole chassis, keypad and display bezel.
+- **Real Telephony**: `InCallService` + `TelecomManager`, live talk-time timer and per-minute tariff billing.
+
+---
+
+## Notification Routing (Mode 7)
+
+Alerts are routed differently depending on who owns the screen:
+
+| Situation | Behaviour |
+|---|---|
+| Mode 7 is the foreground app | The posting app's notification is taken down and re-rendered in-app as a 2G-styled **`1 NEW MESSAGE RECEIVED`** banner (or `N NEW MESSAGES RECEIVED`), with the sender and body. The message indicator stays lit in the status bar until the inbox is opened. |
+| Another app is in front | Nothing is intercepted — the posting app's **normal Android notification** posts and displays as usual. |
+| Any other Parallax mode | Untouched, same as above. |
+
+Tapping the hinge to close the flip mirrors this on the cover display, which shows `N NEW MSG` or `X MISSED CALLS` exactly as the manual describes.
+
+Implementation lives in `core/notifications/NotificationFeed.kt`. `MainActivity` publishes foreground/background transitions via `setLauncherForeground(...)` and the active mode via `setActiveMode(...)`; `ParallaxNotificationListener` consults `NotificationFeed.intercepting` before deciding whether to call `cancelNotification(...)`.
+
+Grant notification access via **CFG → OPEN MESSAGE NOTIFICATION ACCESS**.
+
+---
+
 ## Architecture & Tech Stack
 
 - **Framework**: Jetpack Compose & Material 3

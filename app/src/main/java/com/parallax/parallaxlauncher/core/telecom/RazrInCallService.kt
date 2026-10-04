@@ -32,12 +32,32 @@ object CallManager {
     private var speaker = false
 
     private var ringtone: android.media.Ringtone? = null
+    private var rawPlayer: android.media.MediaPlayer? = null
 
     internal fun startRinging(ctx: android.content.Context) {
         stopRinging()
         val pref = ctx.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
             .getString("ringtoneUri", "") ?: ""
         if (pref == "silent") return
+
+        if (pref.startsWith("android.resource://") || pref.isEmpty()) {
+            val resId = if (pref.contains("razr_v3_original")) com.parallax.parallaxlauncher.R.raw.razr_v3_original
+                        else com.parallax.parallaxlauncher.R.raw.hello_moto
+            rawPlayer = runCatching {
+                android.media.MediaPlayer.create(ctx.applicationContext, resId)?.apply {
+                    setAudioAttributes(
+                        android.media.AudioAttributes.Builder()
+                            .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                            .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build()
+                    )
+                    isLooping = true
+                    start()
+                }
+            }.getOrNull()
+            if (rawPlayer != null) return
+        }
+
         val uri = if (pref.isEmpty()) {
             android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_RINGTONE)
         } else android.net.Uri.parse(pref)
@@ -56,6 +76,11 @@ object CallManager {
     internal fun stopRinging() {
         runCatching { ringtone?.stop() }
         ringtone = null
+        runCatching {
+            rawPlayer?.stop()
+            rawPlayer?.release()
+        }
+        rawPlayer = null
     }
 
     private val callback = object : Call.Callback() {
@@ -108,7 +133,7 @@ object CallManager {
 
     fun answer() { current?.answer(VideoProfile.STATE_AUDIO_ONLY) }
     fun reject() { current?.reject(false, null) }
-    fun hangUp() { current?.disconnect() }
+    fun hangUp() { current?.disconnect(); service?.endCurrentCall() }
     fun hold(on: Boolean) { current?.let { if (on) it.hold() else it.unhold() } }
     fun mute(on: Boolean) { service?.setMuted(on) }
     fun speaker(on: Boolean) {
@@ -137,6 +162,11 @@ class RazrInCallService : InCallService() {
             it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
             runCatching { startActivity(it) }
         }
+    }
+
+    fun endCurrentCall() {
+        // Use the service call list as a fallback when the bridge reference is stale.
+        calls.filter { it.state != Call.STATE_DISCONNECTED }.forEach { it.disconnect() }
     }
 
     override fun onCallRemoved(call: Call) = CallManager.detach(call)

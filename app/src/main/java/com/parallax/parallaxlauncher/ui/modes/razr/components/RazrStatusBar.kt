@@ -17,138 +17,200 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.parallax.parallaxlauncher.ui.modes.razr.RazrPalette
 
-private val MotoBlue = Color(0xFF00B0FF)
-private val MotoCyan = Color(0xFF00E5FF)
-private val DarkBg = Color(0xFF0C131F)
-
+/**
+ * Status indicator row described on page 46 of the V3i user guide: signal
+ * strength, GPRS, data, roam, message, battery level and ring style all live
+ * in a single strip across the top of the internal display.
+ */
 @Composable
 fun RazrStatusBar(
-    modifier: Modifier = Modifier,
+    palette: RazrPalette,
     carrierName: String,
+    signalBars: Int,
     batteryPercent: Int,
+    charging: Boolean,
+    /** Unread messages while the launcher owns the screen. */
+    unreadMessages: Int,
+    ringStyleGlyph: String,
+    modifier: Modifier = Modifier,
 ) {
+    val ink = palette.ink
+    val inkDim = palette.inkDim
+
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(DarkBg)
-            .border(1.dp, Color(0xFF1E2E4A))
-            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .background(palette.lcdBacklight)
+            .padding(horizontal = 3.dp, vertical = 2.dp)
     ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            // 1 Signal strength — vertical bars, per the manual.
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(0.7.dp),
+                verticalAlignment = Alignment.Bottom,
+                modifier = Modifier.height(7.dp)
+            ) {
+                (1..4).forEach { level ->
+                    val h = (1.6f + level * 1.4f).dp
+                    Box(
+                        Modifier
+                            .width(1.4.dp)
+                            .height(h)
+                            .background(if (level <= signalBars) ink else inkDim.copy(alpha = 0.4f))
+                    )
+                }
+            }
+
+            // 2 GPRS
+            TinyTag("2G", ink)
+
+            // 4 Roam
+            TinyTag("R", inkDim)
+
+            Spacer(Modifier.weight(1f))
+
+            // 7 Message indicator — lit while the launcher holds unread alerts.
+            if (unreadMessages > 0) {
+                Text(
+                    text = "✉",
+                    color = palette.alert,
+                    fontSize = 7.sp,
+                    fontWeight = FontWeight.Black,
+                )
+                Text(
+                    text = unreadMessages.toString(),
+                    color = palette.alert,
+                    fontSize = 6.sp,
+                    fontWeight = FontWeight.Black,
+                )
+            }
+
+            // 9 Ring style
+            Text(text = ringStyleGlyph, color = ink, fontSize = 7.sp, fontWeight = FontWeight.Black)
+
+            // 8 Battery level — vertical segments inside an outline.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier
+                        .border(0.8.dp, ink, RoundedCornerShape(1.dp))
+                        .padding(0.8.dp)
+                ) {
+                    val filled = (batteryPercent.coerceIn(0, 100) / 34 + 1).coerceIn(1, 3)
+                    Row(horizontalArrangement = Arrangement.spacedBy(0.5.dp)) {
+                        repeat(3) { i ->
+                            Box(
+                                Modifier
+                                    .width(1.4.dp)
+                                    .height(5.dp)
+                                    .background(
+                                        if (i < filled) {
+                                            if (charging) Color(0xFF1E7B3C) else ink
+                                        } else inkDim.copy(alpha = 0.35f)
+                                    )
+                            )
+                        }
+                    }
+                }
+                Box(
+                    Modifier
+                        .width(1.dp)
+                        .height(3.dp)
+                        .background(ink)
+                )
+            }
+        }
+
+        // Service provider banner line.
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Left: 2G Signal Bars + [G] GPRS Badge
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // Signal bars
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                    verticalAlignment = Alignment.Bottom,
-                    modifier = Modifier.height(12.dp)
-                ) {
-                    val heights = listOf(4.dp, 6.dp, 9.dp, 12.dp)
-                    heights.forEachIndexed { index, h ->
-                        Box(
-                            modifier = Modifier
-                                .width(3.dp)
-                                .height(h)
-                                .background(if (index < 4) MotoCyan else Color(0xFF2C3E55))
-                        )
-                    }
-                }
-
-                Spacer(Modifier.width(4.dp))
-
-                // Vintage 2G / GPRS indicator badge
-                Box(
-                    modifier = Modifier
-                        .background(Color(0xFF003866), RoundedCornerShape(2.dp))
-                        .border(1.dp, MotoBlue, RoundedCornerShape(2.dp))
-                        .padding(horizontal = 3.dp, vertical = 1.dp)
-                ) {
-                    Text(
-                        text = "2G GPRS",
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 8.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MotoCyan
-                    )
-                }
-            }
-
-            // Center: Vintage Audio / Message Icons
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "✉", // Envelope
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 11.sp,
-                    color = Color.White
-                )
-                Text(
-                    text = "🔊", // Ring style
-                    fontSize = 10.sp,
-                )
-            }
-
-            // Right: 3-Segment Retro Battery
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(1.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .border(1.dp, MotoCyan, RoundedCornerShape(2.dp))
-                        .padding(1.dp)
-                ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(1.dp),
-                        modifier = Modifier.height(8.dp)
-                    ) {
-                        val segments = (batteryPercent / 34).coerceIn(1, 3)
-                        repeat(3) { idx ->
-                            Box(
-                                modifier = Modifier
-                                    .width(4.dp)
-                                    .height(8.dp)
-                                    .background(if (idx < segments) Color(0xFF00E676) else Color(0xFF1E3A2E))
-                            )
-                        }
-                    }
-                }
-                // Battery terminal nub
-                Box(
-                    modifier = Modifier
-                        .size(width = 1.5.dp, height = 4.dp)
-                        .background(MotoCyan)
-                )
-            }
-        }
-
-        Spacer(Modifier.height(2.dp))
-
-        // Center Vintage Carrier Name Banner
-        Box(
-            modifier = Modifier.fillMaxWidth(),
-            contentAlignment = Alignment.Center
-        ) {
             Text(
                 text = carrierName.uppercase(),
+                color = ink,
                 fontFamily = FontFamily.Monospace,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = MotoBlue,
-                letterSpacing = 1.sp
+                fontSize = 7.sp,
+                fontWeight = FontWeight.Black,
+                letterSpacing = 0.4.sp,
+                maxLines = 1,
             )
+            Row(horizontalArrangement = Arrangement.spacedBy(1.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("❖", color = inkDim, fontSize = 6.sp)
+                Text("▮", color = inkDim, fontSize = 6.sp)
+            }
         }
     }
+}
+
+@Composable
+private fun TinyTag(label: String, color: Color) {
+    Text(
+        text = label,
+        color = color,
+        fontFamily = FontFamily.Monospace,
+        fontSize = 5.5.sp,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier
+            .clip(RoundedCornerShape(1.dp))
+            .border(0.6.dp, color.copy(alpha = 0.7f), RoundedCornerShape(1.dp))
+            .padding(horizontal = 1.dp)
+    )
+}
+
+/** Soft key label bar drawn at the bottom of the internal display. */
+@Composable
+fun RazrSoftKeyBar(
+    palette: RazrPalette,
+    left: String,
+    center: String,
+    right: String,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(palette.lcdBacklight)
+            .border(0.7.dp, palette.inkDim.copy(alpha = 0.55f))
+            .padding(horizontal = 2.dp, vertical = 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        SoftLabel(palette, left, Modifier.weight(1f), TextAlign.Start)
+        SoftLabel(palette, center, Modifier.weight(1.2f), TextAlign.Center)
+        SoftLabel(palette, right, Modifier.weight(1f), TextAlign.End)
+    }
+}
+
+@Composable
+private fun SoftLabel(palette: RazrPalette, text: String, modifier: Modifier, align: TextAlign) {
+    Box(modifier, contentAlignment = align.toAlignment()) {
+        Text(
+            text = text,
+            color = palette.ink,
+            fontFamily = FontFamily.Monospace,
+            fontSize = 6.5.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+        )
+    }
+}
+
+private fun TextAlign.toAlignment(): Alignment = when (this) {
+    TextAlign.Start, TextAlign.Left -> Alignment.CenterStart
+    TextAlign.End, TextAlign.Right -> Alignment.CenterEnd
+    else -> Alignment.Center
 }

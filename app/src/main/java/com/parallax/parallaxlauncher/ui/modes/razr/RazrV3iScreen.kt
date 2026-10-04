@@ -1,34 +1,35 @@
 package com.parallax.parallaxlauncher.ui.modes.razr
 
+import android.Manifest
+import android.app.KeyguardManager
+import android.app.role.RoleManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.media.AudioManager
 import android.net.Uri
+import android.os.Build
+import android.os.Bundle
 import android.provider.AlarmClock
 import android.provider.CallLog
 import android.provider.ContactsContract
 import android.provider.MediaStore
 import android.provider.Settings as AndroidSettings
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import android.telecom.Call
+import android.telecom.TelecomManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,22 +38,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import android.Manifest
-import android.app.role.RoleManager
-import android.content.pm.PackageManager
-import android.media.AudioManager
-import android.os.Build
-import android.os.Bundle
-import android.telecom.Call
-import android.telecom.TelecomManager
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
-import com.parallax.parallaxlauncher.core.telecom.CallManager
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -60,890 +50,1021 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.parallax.parallaxlauncher.core.data.AppsRepository
 import com.parallax.parallaxlauncher.core.haptics.HapticEngine
+import com.parallax.parallaxlauncher.core.model.AppInfo
+import com.parallax.parallaxlauncher.core.notifications.Headline
+import com.parallax.parallaxlauncher.core.notifications.NotificationFeed
 import com.parallax.parallaxlauncher.core.settings.Settings
+import com.parallax.parallaxlauncher.core.telecom.CallManager
 import com.parallax.parallaxlauncher.core.telecom.TonePlayer
 import com.parallax.parallaxlauncher.core.telecom.VintageCarrierResolver
 import com.parallax.parallaxlauncher.core.telemetry.TelemetryService
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrAboutScreen
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrCoverEvent
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrCoverLocked
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrCoverPanel
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrCoverShell
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrDialingScreen
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrHinge
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrHomeScreen
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrIconGrid
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrInCallScreen
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrIncomingCallScreen
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrInboxList
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrKeypad
-import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrMenuGrid
-import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrStandbyScreen
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrListScreen
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrNotificationAlert
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrPixelScreen
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrRingStyleScreen
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrRoutingHint
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrSoftKeyBar
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrStatusBar
-import com.parallax.parallaxlauncher.ui.modes.razr.components.SYNERGY_MENU_ITEMS
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrThemeScreen
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrToast
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrUnlockScreen
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrUpperShell
 import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
-enum class RazrViewState {
-    STANDBY,
-    MAIN_MENU,
-    APPS_LIST,
-    DIALING,
-    IN_CALL
-}
-
+/**
+ * Mode 7 — Motorola RAZR V3i.
+ *
+ * A working clamshell: the upper shell carries the earpiece, the medallion and
+ * the 2.2" 176x220 internal panel; the lower shell carries the laser-etched
+ * keypad; and the hinge between them genuinely opens and closes. Closing the
+ * flip hands the display over to the 96x80 external CSTN panel, exactly as the
+ * handset does.
+ *
+ * Notification routing lives in [NotificationFeed]: while this mode owns the
+ * foreground, incoming alerts are swallowed and rendered here as
+ * "1 New Message Received". The moment the user leaves for another app, the
+ * posting app's normal Android notification is allowed through untouched.
+ */
 @Composable
 fun RazrV3iScreen(
     repo: AppsRepository,
     telemetry: TelemetryService,
     haptics: HapticEngine,
     settings: Settings,
+    onSettingsChange: ((Settings) -> Settings) -> Unit = {},
 ) {
     val context = LocalContext.current
     val apps by repo.apps.collectAsState()
     val telemetryState by telemetry.state.collectAsState()
+    val notificationItems by NotificationFeed.items.collectAsState()
+    val intercepted by NotificationFeed.intercepted.collectAsState()
+    val unread by NotificationFeed.unread.collectAsState()
+    val messages = notificationItems.filter { it.isMessage }
 
+    val palette = remember(settings.razrSkin) { RazrPalette.of(settings.razrSkin) }
     val carrierName = remember { VintageCarrierResolver.resolve(context) }
     val tonePlayer = remember { TonePlayer() }
-    DisposableEffect(Unit) {
-        onDispose { tonePlayer.release() }
-    }
+    DisposableEffect(Unit) { onDispose { tonePlayer.release() } }
 
-    var viewState by rememberSaveable { mutableStateOf(RazrViewState.STANDBY) }
+    // ---- Hardware state --------------------------------------------------------
+    var flapOpen by rememberSaveable { mutableStateOf(false) }
+    // The 2G handset only demanded its own unlock code while the device itself
+    // was locked. Mirror the system lock so we never nag when the phone is
+    // already unlocked, and fall back to the code when it is.
+    val keyguard = remember { context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager }
+    var locked by rememberSaveable { mutableStateOf(keyguard?.isKeyguardLocked() != false) }
+    var unlockEntry by rememberSaveable { mutableStateOf("") }
+    var unlockError by rememberSaveable { mutableStateOf<String?>(null) }
+
+    var view by rememberSaveable { mutableStateOf(RazrView.STANDBY) }
     var menuIndex by rememberSaveable { mutableIntStateOf(0) }
-    var selectedAppIndex by rememberSaveable { mutableIntStateOf(0) }
-    var dialedBuffer by rememberSaveable { mutableStateOf("") }
-    var listTitle by rememberSaveable { mutableStateOf("Games & Apps") }
+    var subIndex by rememberSaveable { mutableIntStateOf(0) }
+    var listIndex by rememberSaveable { mutableIntStateOf(0) }
+    var dialBuffer by rememberSaveable { mutableStateOf("") }
+    var lastDialed by rememberSaveable { mutableStateOf("") }
+    var toast by rememberSaveable { mutableStateOf<String?>(null) }
+    var callSeconds by rememberSaveable { mutableIntStateOf(0) }
+    var callVolume by rememberSaveable { mutableIntStateOf(7) }
+    var missedCalls by rememberSaveable { mutableIntStateOf(0) }
 
-    // ---- Real telephony state (fed by RazrInCallService via CallManager) ----
+    // ---- Clock -----------------------------------------------------------------
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            now = System.currentTimeMillis()
+            delay(1000)
+        }
+    }
+    val clockText = remember(now) { SimpleDateFormat("HH:mm", Locale.ROOT).format(Date(now)) }
+    val dateText = remember(now) { SimpleDateFormat("dd-MMM-yy", Locale.ROOT).format(Date(now)) }
+
+    // ---- Telephony -------------------------------------------------------------
     val live by CallManager.call.collectAsState()
+    val isRinging = live?.state == Call.STATE_RINGING
     val connectedNumber = live?.number.orEmpty()
     val isMuted = live?.muted ?: false
     val isOnHold = live?.onHold ?: false
     val isSpeaker = live?.speaker ?: false
-    val isIncomingRinging = live?.state == Call.STATE_RINGING
-    val callStatusText = when (live?.state) {
-        Call.STATE_RINGING -> "INCOMING CALL"
-        Call.STATE_DIALING, Call.STATE_CONNECTING, Call.STATE_NEW -> "CALLING..."
-        Call.STATE_HOLDING -> "CALL ON HOLD"
-        Call.STATE_ACTIVE -> "CONNECTED"
-        else -> "CONNECTED"
-    }
-    var callSeconds by rememberSaveable { mutableIntStateOf(0) }
-    var callVolume by rememberSaveable { mutableIntStateOf(7) } // 1..10
-    var lastCallSummary by remember { mutableStateOf<String?>(null) }
-    var lastDialed by rememberSaveable { mutableStateOf("") }
-    var pendingNumber by remember { mutableStateOf<String?>(null) }
-
-    val listState = rememberLazyListState()
-
-    LaunchedEffect(selectedAppIndex) {
-        if (apps.isNotEmpty()) {
-            listState.animateScrollToItem(selectedAppIndex.coerceIn(0, apps.lastIndex))
-        }
-    }
 
     val currencySymbol = remember(settings.callCurrencyIndex) {
         when (settings.callCurrencyIndex) {
-            0 -> "₹"
-            1 -> "p"
-            2 -> "$"
-            else -> "¢"
+            0 -> "₹"; 1 -> "p"; 2 -> "$"; else -> "¢"
+        }
+    }
+    val callCost = remember(callSeconds, settings.callTariffRate) {
+        (callSeconds / 60) * settings.callTariffRate
+    }
+    val rateText = remember(settings.callTariffRate, currencySymbol) {
+        "$currencySymbol${String.format(Locale.ROOT, "%.2f", settings.callTariffRate)}/min"
+    }
+    val costText = remember(callCost, currencySymbol) {
+        "$currencySymbol${String.format(Locale.ROOT, "%.2f", callCost)}"
+    }
+
+    // ---- Permissions and roles -------------------------------------------------
+    var pendingNumber by remember { mutableStateOf<String?>(null) }
+
+    val credentialLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            locked = false
+            unlockEntry = ""
+            unlockError = null
+            view = RazrView.STANDBY
+            tonePlayer.playRazrChirp()
+        } else {
+            unlockError = "CANCELLED"
         }
     }
 
-    val callCost = remember(callSeconds, settings.callTariffRate) {
-        (callSeconds / 60.0) * settings.callTariffRate
-    }
-
-    fun placeRealCall(number: String) {
-        val clean = number.filter { it.isDigit() || it == '+' || it == '*' || it == '#' }
+    fun placeCall(raw: String) {
+        val clean = raw.filter { it.isDigit() || it == '+' || it == '*' || it == '#' }
         if (clean.isEmpty()) return
         lastDialed = clean
-        lastCallSummary = null
         val tm = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
-        runCatching {
-            tm.placeCall(Uri.fromParts("tel", clean, null), Bundle())
-        }.onFailure {
-            lastCallSummary = "CALL FAILED • CHECK SIM / PERMISSIONS"
-        }
-        dialedBuffer = ""
-        viewState = RazrViewState.IN_CALL
+        runCatching { tm.placeCall(Uri.fromParts("tel", clean, null), Bundle()) }
+            .onFailure { toast = "CALL FAILED - CHECK SIM" }
+        dialBuffer = ""
+        view = RazrView.IN_CALL
     }
 
-    fun requestDialerRole(launch: (Intent) -> Unit) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val rm = context.getSystemService(RoleManager::class.java)
-            if (rm.isRoleAvailable(RoleManager.ROLE_DIALER) && !rm.isRoleHeld(RoleManager.ROLE_DIALER)) {
-                launch(rm.createRequestRoleIntent(RoleManager.ROLE_DIALER))
-            }
-        }
-    }
-
-    val roleLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        pendingNumber?.let { placeRealCall(it); pendingNumber = null }
-    }
-
-    val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { res ->
-        if (res[Manifest.permission.CALL_PHONE] == true) {
-            requestDialerRole { roleLauncher.launch(it) }
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-                pendingNumber?.let { placeRealCall(it); pendingNumber = null }
-            }
-        } else {
-            pendingNumber = null
-            lastCallSummary = "CALL PERMISSION DENIED"
-        }
-    }
-
-    fun hasCallPermission() =
-        ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED
-
-    fun isDefaultDialer(): Boolean {
-        val tm = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
-        return tm.defaultDialerPackage == context.packageName
-    }
-
-    fun startCall(number: String) {
+    fun startCall(
+        number: String,
+        perm: ActivityResultLauncher<Array<String>>,
+        role: ActivityResultLauncher<Intent>,
+    ) {
         haptics.thud()
         val target = number.ifBlank { lastDialed }
         if (target.isBlank()) { tonePlayer.playRazrChirp(); return }
-        if (!hasCallPermission()) {
+        if (!hasCallPermission(context)) {
             pendingNumber = target
-            permLauncher.launch(
-                arrayOf(
-                    Manifest.permission.CALL_PHONE,
-                    Manifest.permission.READ_PHONE_STATE,
-                    Manifest.permission.ANSWER_PHONE_CALLS,
-                )
+            perm.launch(
+                arrayOf(Manifest.permission.CALL_PHONE, Manifest.permission.ANSWER_PHONE_CALLS)
             )
             return
         }
-        if (!isDefaultDialer() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        if (!isDefaultDialer(context) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             pendingNumber = target
-            requestDialerRole { roleLauncher.launch(it) }
-            // If the role dialog isn't shown (already decided), fall through to place anyway.
+            requestDialerRole(context) { role.launch(it) }
             val rm = context.getSystemService(RoleManager::class.java)
-            if (!rm.isRoleAvailable(RoleManager.ROLE_DIALER)) { pendingNumber = null; placeRealCall(target) }
+            if (!rm.isRoleAvailable(RoleManager.ROLE_DIALER)) {
+                pendingNumber = null
+                placeCall(target)
+            }
             return
         }
-        placeRealCall(target)
+        placeCall(target)
     }
 
-    fun endCall() {
-        haptics.thud()
-        if (isIncomingRinging) CallManager.reject() else CallManager.hangUp()
-    }
+    val roleLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { pendingNumber?.let { placeCall(it); pendingNumber = null } }
 
-    // Ask for permissions + Dialer role when Mode 7 opens so incoming calls work immediately.
-    LaunchedEffect(Unit) {
-        if (!hasCallPermission()) {
-            permLauncher.launch(
-                arrayOf(
-                    Manifest.permission.CALL_PHONE,
-                    Manifest.permission.READ_PHONE_STATE,
-                    Manifest.permission.ANSWER_PHONE_CALLS,
-                )
-            )
-        } else if (!isDefaultDialer()) {
-            requestDialerRole { roleLauncher.launch(it) }
+    val permLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { res ->
+        if (res[Manifest.permission.CALL_PHONE] == true) {
+            requestDialerRole(context) { roleLauncher.launch(it) }
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                pendingNumber?.let { placeCall(it); pendingNumber = null }
+            }
+        } else {
+            pendingNumber = null
+            toast = "CALL PERMISSION DENIED"
         }
     }
 
-    // Talk-time clock derived from the system's real connect timestamp.
+    LaunchedEffect(Unit) {
+        if (!hasCallPermission(context)) {
+            permLauncher.launch(
+                arrayOf(Manifest.permission.CALL_PHONE, Manifest.permission.ANSWER_PHONE_CALLS)
+            )
+        } else if (!isDefaultDialer(context)) {
+            requestDialerRole(context) { roleLauncher.launch(it) }
+        }
+    }
+
+    // Talk timer driven by the real connect timestamp.
     LaunchedEffect(live?.connectTimeMillis, live?.state) {
         val l = live ?: return@LaunchedEffect
         if (l.connectTimeMillis > 0L && l.state != Call.STATE_DISCONNECTED) {
             while (true) {
-                callSeconds = ((System.currentTimeMillis() - l.connectTimeMillis) / 1000L).toInt().coerceAtLeast(0)
+                callSeconds =
+                    ((System.currentTimeMillis() - l.connectTimeMillis) / 1000L).toInt().coerceAtLeast(0)
                 delay(500)
             }
-        } else if (l.state == Call.STATE_RINGING || l.state == Call.STATE_DIALING || l.state == Call.STATE_CONNECTING) {
+        } else if (l.state == Call.STATE_RINGING || l.state == Call.STATE_DIALING) {
             callSeconds = 0
         }
     }
 
-    // Drive the screen from real call state (incoming calls pop the call screen automatically).
+    // Drive the panel from real call state.
     LaunchedEffect(live?.state) {
         val l = live
         if (l == null) return@LaunchedEffect
         if (l.state == Call.STATE_DISCONNECTED) {
             tonePlayer.playBusy()
             val dur = String.format(Locale.ROOT, "%02d:%02d", callSeconds / 60, callSeconds % 60)
-            val costStr = String.format(Locale.ROOT, "%.2f", callCost)
-            lastCallSummary = "ENDED • DURATION: $dur • CHARGED: $currencySymbol$costStr"
+            toast = "ENDED - $dur - CHARGED $currencySymbol" +
+                String.format(Locale.ROOT, "%.2f", callCost)
             CallManager.clearFinished()
-            dialedBuffer = ""
-            viewState = RazrViewState.STANDBY
+            dialBuffer = ""
+            view = RazrView.STANDBY
         } else {
-            viewState = RazrViewState.IN_CALL
+            view = if (l.state == Call.STATE_RINGING) RazrView.INCOMING else RazrView.IN_CALL
         }
     }
 
-    // Map the 1..10 earpiece volume onto the real voice-call stream.
+    // Tally unanswered calls so the cover display can show "X Missed Calls".
+    var wasRinging by remember { mutableStateOf(false) }
+    var everAnswered by remember { mutableStateOf(false) }
+    LaunchedEffect(live?.state) {
+        when {
+            live?.state == Call.STATE_RINGING -> wasRinging = true
+            live?.state == Call.STATE_ACTIVE || live?.state == Call.STATE_HOLDING -> everAnswered = true
+            live?.state == Call.STATE_DISCONNECTED && wasRinging && !everAnswered -> {
+                missedCalls += 1
+                wasRinging = false
+                everAnswered = false
+            }
+            live == null -> {
+                wasRinging = false
+                everAnswered = false
+            }
+        }
+    }
+
+    // Earpiece volume onto the real voice-call stream.
     LaunchedEffect(callVolume) {
         runCatching {
             val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
             val max = am.getStreamMaxVolume(AudioManager.STREAM_VOICE_CALL)
-            am.setStreamVolume(AudioManager.STREAM_VOICE_CALL, (callVolume * max / 10).coerceAtLeast(1), 0)
+            am.setStreamVolume(
+                AudioManager.STREAM_VOICE_CALL,
+                (callVolume * max / 10).coerceAtLeast(1),
+                0,
+            )
         }
     }
 
-    fun openMessages() {
-        haptics.click()
-        tonePlayer.playRazrChirp()
-        val intent = Intent(Intent.ACTION_MAIN).apply {
-            addCategory(Intent.CATEGORY_APP_MESSAGING)
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+    // Auto-dismiss the transient toast strip.
+    LaunchedEffect(toast) {
+        if (toast != null) { delay(2600); toast = null }
+    }
+
+    // Opening the inbox clears the unread tally, per the manual's message flow.
+    LaunchedEffect(view) {
+        if (view == RazrView.INBOX || view == RazrView.MESSAGES) NotificationFeed.markAllRead()
+    }
+
+    // ---- Intent helpers --------------------------------------------------------
+    /**
+     * Hands off to the real Android lock screen: swipe up, type the PIN, and we
+     * are in. Falls back to simply unlocking when the device has no credential
+     * set, and re-locks if the user backs out.
+     */
+    fun requestSystemUnlock() {
+        val intent = runCatching {
+            keyguard?.createConfirmDeviceCredentialIntent(
+                "Unlock RAZR V3i",
+                "Swipe up and enter your PIN, pattern, or password",
+            )
+        }.getOrNull()
+        if (intent == null) {
+            // No screen lock configured, so there is nothing to confirm.
+            locked = false
+            unlockError = null
+            view = RazrView.STANDBY
+            tonePlayer.playRazrChirp()
+            return
         }
-        runCatching { context.startActivity(intent) }.onFailure {
-            val fallback = Intent(Intent.ACTION_VIEW, Uri.parse("sms:")).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        runCatching { credentialLauncher.launch(intent) }
+            .onFailure {
+                // Device refused to show it (e.g. no credential set after all).
+                locked = false
+                unlockError = null
+                view = RazrView.STANDBY
             }
-            runCatching { context.startActivity(fallback) }
-        }
+    }
+
+    fun open(intent: Intent) {
+        runCatching { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+    }
+
+    fun openMessaging() {
+        tonePlayer.playRazrChirp()
+        val i = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_MESSAGING)
+        runCatching { context.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            .onFailure { open(Intent(Intent.ACTION_VIEW, Uri.parse("sms:"))) }
     }
 
     fun openContacts() {
-        haptics.click()
         tonePlayer.playRazrChirp()
-        val intent = Intent(Intent.ACTION_MAIN).apply {
-            addCategory(Intent.CATEGORY_APP_CONTACTS)
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        }
-        runCatching { context.startActivity(intent) }.onFailure {
-            val fallback = Intent(Intent.ACTION_VIEW, ContactsContract.Contacts.CONTENT_URI).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            runCatching { context.startActivity(fallback) }
-        }
+        val i = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_CONTACTS)
+        runCatching { context.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            .onFailure { open(Intent(Intent.ACTION_VIEW, ContactsContract.Contacts.CONTENT_URI)) }
     }
 
-    fun openRecentCalls() {
-        haptics.click()
+    fun openCalls() {
         tonePlayer.playRazrChirp()
-        val intent = Intent(Intent.ACTION_VIEW, CallLog.Calls.CONTENT_URI).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        }
-        runCatching { context.startActivity(intent) }.onFailure {
-            tonePlayer.playRazrChirp()
-        }
+        open(Intent(Intent.ACTION_VIEW, CallLog.Calls.CONTENT_URI))
     }
 
     fun openCamera() {
         haptics.thud()
-        val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        }
-        runCatching { context.startActivity(intent) }
+        open(Intent(MediaStore.ACTION_IMAGE_CAPTURE))
     }
 
-    fun handleDialKey(char: Char) {
-        haptics.click()
-        if (viewState == RazrViewState.IN_CALL) {
-            // In-call DTMF: sent to the far end through the real call
-            tonePlayer.playDtmf(char)
-            if (char != 'C') CallManager.dtmf(char)
+    fun openBrowser() {
+        tonePlayer.playRazrChirp()
+        open(Intent(Intent.ACTION_VIEW, Uri.parse("https://google.com")))
+    }
+
+    fun goHome() {
+        view = RazrView.STANDBY
+        subIndex = 0
+        listIndex = 0
+    }
+
+    // ---- Menu selection --------------------------------------------------------
+    fun selectMenuItem(item: RazrMenuItem) {
+        tonePlayer.playRazrChirp()
+        when (item.id) {
+            1 -> { view = RazrView.CALLS; listIndex = 0 }
+            2 -> { view = RazrView.MESSAGES; subIndex = 0 }
+            3 -> { openContacts(); goHome() }
+            4 -> openBrowser()
+            5 -> { view = RazrView.APPS_LIST; listIndex = 0 }
+            6 -> { view = RazrView.RINGTONES; listIndex = 0 }
+            7 -> { view = RazrView.TOOLS; subIndex = 0 }
+            8 -> { view = RazrView.SETTINGS; subIndex = 0 }
+            9 -> openCamera()
+            else -> { listIndex = 0; view = RazrView.APPS_LIST }
+        }
+    }
+
+    fun selectSettingsItem(item: RazrMenuItem) {
+        tonePlayer.playRazrChirp()
+        when (item.id) {
+            101 -> { view = RazrView.THEME; subIndex = settings.razrSkin.ordinal }
+            102 -> view = RazrView.RINGTONES
+            106 -> view = RazrView.ABOUT
+            108 -> { view = RazrView.TOOLS; subIndex = 0 }
+            else -> { toast = item.title.uppercase(Locale.ROOT); goHome() }
+        }
+    }
+
+    fun selectToolsItem(item: RazrMenuItem) {
+        tonePlayer.playRazrChirp()
+        when (item.id) {
+            201 -> view = RazrView.CALCULATOR
+            205 -> open(Intent(AlarmClock.ACTION_SET_ALARM))
+            else -> { toast = item.title.uppercase(Locale.ROOT); goHome() }
+        }
+    }
+
+    // ---- Keypad input ----------------------------------------------------------
+    fun handleKey(ch: Char) {
+        tonePlayer.playDtmf(ch)
+        if (locked) {
+            // '*' opens the real Android lock screen: swipe up, enter the PIN.
+            if (ch == '*') {
+                tonePlayer.playRazrChirp()
+                requestSystemUnlock()
+                return
+            }
+            if (ch.isDigit()) {
+                unlockEntry += ch
+                view = RazrView.UNLOCK
+                if (unlockEntry.length >= 4) {
+                    if (unlockEntry == settings.razrUnlockCode) {
+                        locked = false
+                        unlockEntry = ""
+                        unlockError = null
+                        view = RazrView.STANDBY
+                        tonePlayer.playRazrChirp()
+                    } else {
+                        unlockError = "WRONG CODE"
+                        unlockEntry = ""
+                    }
+                }
+            }
             return
         }
 
-        if (char == 'C') {
-            tonePlayer.playRazrChirp()
-            if (dialedBuffer.isNotEmpty()) {
-                dialedBuffer = dialedBuffer.dropLast(1)
-                if (dialedBuffer.isEmpty() && viewState == RazrViewState.DIALING) {
-                    viewState = RazrViewState.STANDBY
-                }
+        when (view) {
+            RazrView.MESSAGES -> when (ch) {
+                '1' -> { view = RazrView.INBOX; listIndex = 0 }
+                '2' -> open(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${settings.razrVoicemailNumber}")))
+                '3' -> openMessaging()
+                else -> Unit
             }
-        } else {
-            tonePlayer.playDtmf(char)
-            dialedBuffer += char
-            viewState = RazrViewState.DIALING
+
+            RazrView.IN_CALL -> {
+                if (ch != 'C') CallManager.dtmf(ch)
+                if (ch == '0' || ch == '+') callVolume = (callVolume + 1).coerceAtMost(10)
+            }
+
+            else -> {
+                if (ch == 'C') {
+                    if (dialBuffer.isNotEmpty()) dialBuffer = dialBuffer.dropLast(1)
+                    else if (view == RazrView.DIALING) goHome()
+                    return
+                }
+                dialBuffer += ch
+                view = RazrView.DIALING
+            }
         }
     }
 
+    // ---- Rocker behaviour ------------------------------------------------------
+    /** Volume-rocker shortcut from the manual: rotate through ring styles. */
+    fun cycleRingStyle(delta: Int) {
+        val count = RAZR_RING_STYLES.size
+        val next = ((settings.razrRingStyleIndex + delta) % count + count) % count
+        onSettingsChange { it.copy(razrRingStyleIndex = next) }
+        toast = "RING STYLE: ${RAZR_RING_STYLES[next].name.uppercase(Locale.ROOT)}"
+        tonePlayer.playRazrChirp()
+    }
+
+    fun onUp() {
+        when {
+            locked -> Unit
+            view == RazrView.STANDBY -> cycleRingStyle(1)
+            view == RazrView.MAIN_MENU -> if (menuIndex >= 3) { menuIndex -= 3; tonePlayer.playRazrChirp() }
+            view == RazrView.SETTINGS -> if (subIndex >= 3) { subIndex -= 3; tonePlayer.playRazrChirp() }
+            view == RazrView.TOOLS -> if (subIndex >= 3) { subIndex -= 3; tonePlayer.playRazrChirp() }
+            view == RazrView.MESSAGES -> if (subIndex > 0) { subIndex -= 1; tonePlayer.playRazrChirp() }
+            view == RazrView.THEME -> if (subIndex > 0) { subIndex -= 1; tonePlayer.playRazrChirp() }
+            view == RazrView.APPS_LIST -> if (listIndex > 0) { listIndex -= 1; tonePlayer.playRazrChirp() }
+            view == RazrView.INBOX -> if (listIndex > 0) { listIndex -= 1; tonePlayer.playRazrChirp() }
+            view == RazrView.IN_CALL -> { callVolume = (callVolume + 1).coerceAtMost(10); tonePlayer.playRazrChirp() }
+        }
+    }
+
+    fun onDown() {
+        when {
+            locked -> Unit
+            view == RazrView.STANDBY -> openCalls()
+            view == RazrView.MAIN_MENU ->
+                if (menuIndex <= RAZR_MAIN_MENU.size - 4) { menuIndex += 3; tonePlayer.playRazrChirp() }
+            view == RazrView.SETTINGS ->
+                if (subIndex <= RAZR_SETTINGS_MENU.size - 4) { subIndex += 3; tonePlayer.playRazrChirp() }
+            view == RazrView.TOOLS ->
+                if (subIndex <= RAZR_TOOLS_MENU.size - 4) { subIndex += 3; tonePlayer.playRazrChirp() }
+            view == RazrView.MESSAGES -> if (subIndex < 2) { subIndex += 1; tonePlayer.playRazrChirp() }
+            view == RazrView.THEME ->
+                if (subIndex < RazrSkin.entries.lastIndex) { subIndex += 1; tonePlayer.playRazrChirp() }
+            view == RazrView.APPS_LIST ->
+                if (listIndex < apps.lastIndex) { listIndex += 1; tonePlayer.playRazrChirp() }
+            view == RazrView.INBOX ->
+                if (listIndex < messages.lastIndex) { listIndex += 1; tonePlayer.playRazrChirp() }
+            view == RazrView.IN_CALL -> { callVolume = (callVolume - 1).coerceAtLeast(1); tonePlayer.playRazrChirp() }
+        }
+    }
+
+    fun onLeft() {
+        when {
+            locked -> Unit
+            view == RazrView.STANDBY -> { view = RazrView.INBOX; listIndex = 0 }
+            view == RazrView.MAIN_MENU -> if (menuIndex % 3 > 0) { menuIndex -= 1; tonePlayer.playRazrChirp() }
+            view == RazrView.SETTINGS -> if (subIndex % 3 > 0) { subIndex -= 1; tonePlayer.playRazrChirp() }
+            view == RazrView.TOOLS -> if (subIndex % 3 > 0) { subIndex -= 1; tonePlayer.playRazrChirp() }
+        }
+    }
+
+    fun onRight() {
+        when {
+            locked -> Unit
+            view == RazrView.STANDBY -> openCamera()
+            view == RazrView.MAIN_MENU -> if (menuIndex % 3 < 2) { menuIndex += 1; tonePlayer.playRazrChirp() }
+            view == RazrView.SETTINGS -> if (subIndex % 3 < 2) { subIndex += 1; tonePlayer.playRazrChirp() }
+            view == RazrView.TOOLS -> if (subIndex % 3 < 2) { subIndex += 1; tonePlayer.playRazrChirp() }
+        }
+    }
+
+    fun onCenter() {
+        if (locked) { tonePlayer.playRazrChirp(); return }
+        haptics.thud()
+        when (view) {
+            RazrView.STANDBY -> { view = RazrView.MAIN_MENU; menuIndex = 0; tonePlayer.playRazrChirp() }
+            RazrView.DIALING -> startCall(dialBuffer, permLauncher, roleLauncher)
+            RazrView.MAIN_MENU -> selectMenuItem(RAZR_MAIN_MENU[menuIndex.coerceIn(RAZR_MAIN_MENU.indices)])
+            RazrView.SETTINGS -> selectSettingsItem(RAZR_SETTINGS_MENU[subIndex.coerceIn(RAZR_SETTINGS_MENU.indices)])
+            RazrView.TOOLS -> selectToolsItem(RAZR_TOOLS_MENU[subIndex.coerceIn(RAZR_TOOLS_MENU.indices)])
+            RazrView.MESSAGES -> when (subIndex) {
+                0 -> { view = RazrView.INBOX; listIndex = 0 }
+                1 -> open(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${settings.razrVoicemailNumber}")))
+                else -> openMessaging()
+            }
+            RazrView.THEME -> {
+                onSettingsChange {
+                    it.copy(razrSkin = RazrSkin.entries[subIndex.coerceIn(RazrSkin.entries.indices)])
+                }
+                toast = "THEME APPLIED"
+                goHome()
+            }
+            RazrView.APPS_LIST -> apps.getOrNull(listIndex)?.let {
+                tonePlayer.playRazrChirp()
+                repo.launch(it)
+            }
+            RazrView.INBOX -> openMessaging()
+            RazrView.CALLS -> openCalls()
+            RazrView.RINGTONES -> open(Intent(AndroidSettings.ACTION_SOUND_SETTINGS))
+            RazrView.IN_CALL -> { CallManager.hold(!isOnHold); tonePlayer.playRazrChirp() }
+            RazrView.INCOMING -> CallManager.answer()
+            else -> tonePlayer.playRazrChirp()
+        }
+    }
+
+    fun onSoftLeft() {
+        tonePlayer.playRazrChirp()
+        if (locked) return
+        when (view) {
+            RazrView.STANDBY -> { view = RazrView.INBOX; listIndex = 0 }
+            RazrView.IN_CALL -> CallManager.mute(!isMuted)
+            RazrView.INCOMING -> CallManager.reject()
+            else -> goHome()
+        }
+    }
+
+    fun onSoftRight() {
+        tonePlayer.playRazrChirp()
+        if (locked) return
+        when (view) {
+            RazrView.STANDBY -> openCamera()
+            RazrView.IN_CALL -> CallManager.speaker(!isSpeaker)
+            RazrView.INCOMING -> CallManager.answer()
+            RazrView.DIALING -> { dialBuffer = ""; goHome() }
+            else -> goHome()
+        }
+    }
+
+    // ---- Soft-key captions -----------------------------------------------------
+    val softLeft = when {
+        locked -> "UNLOCK"
+        view == RazrView.IN_CALL -> "MUTE"
+        view == RazrView.INCOMING -> "DECLINE"
+        view == RazrView.STANDBY -> "INBOX"
+        view == RazrView.DIALING -> "CLEAR"
+        else -> "BACK"
+    }
+    val softCenter = when {
+        locked -> "MOTOROLA"
+        view == RazrView.IN_CALL -> "HOLD"
+        view == RazrView.INCOMING -> "ANSWER"
+        view == RazrView.STANDBY -> "MENU"
+        view == RazrView.DIALING -> "SEND"
+        else -> "SELECT"
+    }
+    val softRight = when {
+        locked -> ""
+        view == RazrView.IN_CALL -> "SPKR"
+        view == RazrView.INCOMING -> "ANSWER"
+        view == RazrView.STANDBY -> "CAMERA"
+        view == RazrView.DIALING -> "CANCEL"
+        else -> "BACK"
+    }
+
+    val wallpaper = RazrWallpapers.all[
+        settings.razrWallpaperIndex.coerceIn(RazrWallpapers.all.indices)
+    ].res
+
+    // ---- Chassis ---------------------------------------------------------------
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF06090F))
+            .background(Color(0xFF0A0B0D))
             .statusBarsPadding()
             .navigationBarsPadding()
             .padding(horizontal = 8.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceBetween
     ) {
-        // Upper Clamshell: Motorola Internal Color Screen (Strict non-touch display)
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color(0xFF03070E))
-                .border(3.dp, Color(0xFF2C394E), RoundedCornerShape(12.dp))
-        ) {
-            // 1. Vintage 2G Status Bar
-            RazrStatusBar(
-                carrierName = carrierName,
-                batteryPercent = telemetryState.batteryPct.coerceAtLeast(0)
-            )
+      // Flip open: the full clamshell — inner panel, hinge, keypad.
+      if (flapOpen) {
+        RazrUpperShell(palette, Modifier.weight(1f).fillMaxWidth()) {
+            RazrPixelScreen(palette = palette, modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.fillMaxSize()) {
+                    RazrStatusBar(
+                        palette = palette,
+                        carrierName = carrierName,
+                        signalBars = 3,
+                        batteryPercent = telemetryState.batteryPct.coerceAtLeast(0),
+                        charging = telemetryState.charging,
+                        unreadMessages = unread,
+                        ringStyleGlyph = RAZR_RING_STYLES[
+                            settings.razrRingStyleIndex.coerceIn(RAZR_RING_STYLES.indices)
+                        ].glyph,
+                    )
 
-            // 2. Active Screen View
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .padding(6.dp)
-            ) {
-                when (viewState) {
-                    RazrViewState.STANDBY -> {
-                        Box(Modifier.fillMaxSize()) {
-                            RazrStandbyScreen()
-                            if (lastCallSummary != null) {
-                                Box(
-                                    modifier = Modifier
-                                        .align(Alignment.BottomCenter)
-                                        .padding(bottom = 44.dp)
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(Color(0xEE00264D))
-                                        .border(1.dp, Color(0xFF00E5FF), RoundedCornerShape(6.dp))
-                                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                                ) {
-                                    Text(
-                                        text = lastCallSummary!!,
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF00E5FF)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    RazrViewState.MAIN_MENU -> {
-                        RazrMenuGrid(
-                            selectedIndex = menuIndex
-                        )
-                    }
-
-                    RazrViewState.APPS_LIST -> {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color(0xFF071221), RoundedCornerShape(6.dp))
-                                .border(1.dp, Color(0xFF1E3A60), RoundedCornerShape(6.dp))
-                                .padding(8.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(Color(0xFF003866), RoundedCornerShape(4.dp))
-                                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = listTitle.uppercase(),
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = Color(0xFF00E5FF)
-                                )
-                                Text(
-                                    text = "[▲/▼ Scroll • OK Open]",
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 9.sp,
-                                    color = Color(0xFF88AACC)
-                                )
-                            }
-
-                            Spacer(Modifier.height(6.dp))
-
-                            LazyColumn(
-                                state = listState,
-                                modifier = Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                itemsIndexed(apps) { idx, app ->
-                                    val isSelected = (idx == selectedAppIndex)
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(if (isSelected) Color(0xFF003866) else Color(0xFF0E1E34))
-                                            .border(
-                                                width = if (isSelected) 1.5.dp else 0.5.dp,
-                                                color = if (isSelected) Color(0xFF00E5FF) else Color(0xFF1E3A60),
-                                                shape = RoundedCornerShape(4.dp)
-                                            )
-                                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = app.label,
-                                            fontFamily = FontFamily.Monospace,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (isSelected) Color.White else Color(0xFFCCE0FF)
-                                        )
-                                        if (isSelected) {
-                                            Text(
-                                                text = "► [OPEN]",
-                                                fontFamily = FontFamily.Monospace,
-                                                fontSize = 9.sp,
-                                                fontWeight = FontWeight.Black,
-                                                color = Color(0xFF00E676)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    RazrViewState.DIALING -> {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color(0xFF071221), RoundedCornerShape(6.dp))
-                                .border(1.dp, Color(0xFF1E3A60), RoundedCornerShape(6.dp))
-                                .padding(12.dp),
-                            verticalArrangement = Arrangement.SpaceBetween,
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = "DIALING...",
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF00E5FF)
+                    Box(Modifier.weight(1f).fillMaxWidth()) {
+                        when {
+                            isRinging -> RazrIncomingCallScreen(palette, connectedNumber)
+                            locked -> RazrUnlockScreen(palette, unlockEntry, unlockError)
+                            else -> ActiveView(
+                                view = view,
+                                palette = palette,
+                                settings = settings,
+                                wallpaperRes = wallpaper,
+                                apps = apps,
+                                messages = messages,
+                                menuIndex = menuIndex,
+                                subIndex = subIndex,
+                                listIndex = listIndex,
+                                dialBuffer = dialBuffer,
+                                clockText = clockText,
+                                dateText = dateText,
+                                callSeconds = callSeconds,
+                                callStatus = when {
+                                    isOnHold -> "CALL ON HOLD"
+                                    live?.state == Call.STATE_DIALING ||
+                                        live?.state == Call.STATE_CONNECTING -> "CALLING..."
+                                    else -> "CONNECTED"
+                                },
+                                number = connectedNumber,
+                                rateText = rateText,
+                                costText = costText,
+                                isMuted = isMuted,
+                                isOnHold = isOnHold,
+                                isSpeaker = isSpeaker,
+                                batteryPct = telemetryState.batteryPct.coerceAtLeast(0),
+                                missedCalls = missedCalls,
+                                lastDialed = lastDialed,
                             )
-
-                            Text(
-                                text = dialedBuffer,
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 26.sp,
-                                fontWeight = FontWeight.Black,
-                                color = Color.White,
-                                letterSpacing = 2.sp
-                            )
-
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    text = "PRESS [CALL] TO CONNECT",
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF00E676)
-                                )
-                                Spacer(Modifier.height(4.dp))
-                                Text(
-                                    text = "[CLEAR] Erase  •  [END] Cancel",
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 9.sp,
-                                    color = Color(0xFF88AACC)
-                                )
-                            }
                         }
-                    }
 
-                    RazrViewState.IN_CALL -> {
-                        val mm = callSeconds / 60
-                        val ss = callSeconds % 60
-                        val timerStr = String.format(Locale.ROOT, "%02d:%02d", mm, ss)
-                        val costStr = String.format(Locale.ROOT, "%.2f", callCost)
-
+                        // The in-app alert floats over whatever view is showing.
                         Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(Color(0xFF05101E))
-                                .border(2.dp, Color(0xFF1E3A60), RoundedCornerShape(6.dp))
-                                .padding(10.dp),
-                            verticalArrangement = Arrangement.SpaceBetween,
-                            horizontalAlignment = Alignment.CenterHorizontally
+                            Modifier.fillMaxSize().padding(3.dp),
+                            verticalArrangement = Arrangement.Top,
                         ) {
-                            // Top Active Call Banner
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(Color(0xFF002E54), RoundedCornerShape(4.dp))
-                                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                            RazrNotificationAlert(palette, intercepted)
+                        }
+
+                        toast?.let { message ->
+                            Box(
+                                Modifier.fillMaxSize().padding(bottom = 24.dp),
+                                contentAlignment = Alignment.BottomCenter,
                             ) {
-                                Text(
-                                    text = callStatusText,
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = if (isOnHold) Color(0xFFFFB300) else Color(0xFF00E676)
-                                )
-                                Text(
-                                    text = "VOL $callVolume/10",
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF00E5FF)
-                                )
-                            }
-
-                            // Center Call Information
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Text(
-                                    text = connectedNumber,
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = Color.White,
-                                    letterSpacing = 1.sp
-                                )
-
-                                Spacer(Modifier.height(6.dp))
-
-                                Text(
-                                    text = timerStr,
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 36.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = if (isOnHold) Color(0xFFFFB300) else Color(0xFF00E5FF),
-                                    letterSpacing = 2.sp
-                                )
-
-                                Spacer(Modifier.height(6.dp))
-
-                                // Real-Time Billing Accumulator
-                                Row(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(Color(0xFF0B1F38))
-                                        .border(1.dp, Color(0xFF1C4273), RoundedCornerShape(4.dp))
-                                        .padding(horizontal = 10.dp, vertical = 4.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "RATE: $currencySymbol${settings.callTariffRate}/min",
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 10.sp,
-                                        color = Color(0xFF88AACC)
-                                    )
-                                    Text(
-                                        text = "COST: $currencySymbol$costStr",
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Black,
-                                        color = Color(0xFF00E676)
-                                    )
-                                }
-
-                                Spacer(Modifier.height(8.dp))
-
-                                // Live Status Badges
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    if (isMuted) {
-                                        Text(
-                                            text = "[MIC MUTED]",
-                                            fontFamily = FontFamily.Monospace,
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFFFF5252)
-                                        )
-                                    }
-                                    if (isOnHold) {
-                                        Text(
-                                            text = "[HOLD]",
-                                            fontFamily = FontFamily.Monospace,
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFFFFB300)
-                                        )
-                                    }
-                                    if (isSpeaker) {
-                                        Text(
-                                            text = "[SPEAKER ON]",
-                                            fontFamily = FontFamily.Monospace,
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF00E5FF)
-                                        )
-                                    }
-                                }
-                            }
-
-                            // Bottom Clamshell Softkeys Visual Hints
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(Color(0xFF071221), RoundedCornerShape(4.dp))
-                                    .border(1.dp, Color(0xFF1E3A60), RoundedCornerShape(4.dp))
-                                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = if (isMuted) "[ Unmute ]" else "[ Mute ]",
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF00E5FF)
-                                )
-                                Text(
-                                    text = if (isOnHold) "[ Unhold ]" else "[ Hold ]",
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = Color.White
-                                )
-                                Text(
-                                    text = if (isSpeaker) "[ Earpiece ]" else "[ Speaker ]",
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF00E5FF)
-                                )
+                                RazrToast(palette, message, Modifier.padding(horizontal = 6.dp))
                             }
                         }
                     }
+
+                    RazrSoftKeyBar(palette, left = softLeft, center = softCenter, right = softRight)
                 }
             }
         }
 
-        Spacer(Modifier.height(8.dp))
+        RazrHinge(palette, Modifier.fillMaxWidth(), open = flapOpen) {
+            haptics.thud()
+            flapOpen = !flapOpen
+            tonePlayer.playRazrChirp()
+        }
 
-        // Lower Clamshell: Chemically Etched Nickel Keypad with Physical D-Pad & 0 + Key
-        RazrKeypad(
-            modifier = Modifier.fillMaxWidth(),
-            haptics = haptics,
-            onUp = {
-                when (viewState) {
-                    RazrViewState.IN_CALL -> {
-                        callVolume = (callVolume + 1).coerceAtMost(10)
-                        tonePlayer.playRazrChirp()
+            RazrKeypad(
+                palette = palette,
+                modifier = Modifier.weight(1.15f),
+                haptics = haptics,
+                onUp = { onUp() },
+                onDown = { onDown() },
+                onLeft = { onLeft() },
+                onRight = { onRight() },
+                onCenter = { onCenter() },
+                onSoftLeft = { onSoftLeft() },
+                onSoftRight = { onSoftRight() },
+                onCall = {
+                    when {
+                        isRinging -> { haptics.thud(); CallManager.answer() }
+                        view == RazrView.IN_CALL -> CallManager.hold(!isOnHold)
+                        locked -> { view = RazrView.UNLOCK; unlockEntry = ""; unlockError = null }
+                        else -> startCall(dialBuffer, permLauncher, roleLauncher)
                     }
-                    RazrViewState.STANDBY -> {
-                        openContacts()
+                },
+                onEnd = {
+                    when {
+                        isRinging -> { haptics.thud(); CallManager.reject() }
+                        view == RazrView.IN_CALL -> { CallManager.hangUp(); goHome() }
+                        locked -> { view = RazrView.STANDBY; unlockEntry = "" }
+                        else -> { tonePlayer.playBusy(); dialBuffer = ""; goHome() }
                     }
-                    RazrViewState.MAIN_MENU -> {
-                        if (menuIndex >= 3) {
-                            menuIndex -= 3
-                            tonePlayer.playRazrChirp()
-                        }
-                    }
-                    RazrViewState.APPS_LIST -> {
-                        if (selectedAppIndex > 0) {
-                            selectedAppIndex--
-                            tonePlayer.playRazrChirp()
-                        }
-                    }
-                    RazrViewState.DIALING -> {}
-                }
-            },
-            onDown = {
-                when (viewState) {
-                    RazrViewState.IN_CALL -> {
-                        callVolume = (callVolume - 1).coerceAtLeast(1)
-                        tonePlayer.playRazrChirp()
-                    }
-                    RazrViewState.STANDBY -> {
-                        openRecentCalls()
-                    }
-                    RazrViewState.MAIN_MENU -> {
-                        if (menuIndex <= 5) {
-                            menuIndex += 3
-                            tonePlayer.playRazrChirp()
-                        }
-                    }
-                    RazrViewState.APPS_LIST -> {
-                        if (selectedAppIndex < apps.lastIndex) {
-                            selectedAppIndex++
-                            tonePlayer.playRazrChirp()
-                        }
-                    }
-                    RazrViewState.DIALING -> {}
-                }
-            },
-            onLeft = {
-                when (viewState) {
-                    RazrViewState.STANDBY -> {
-                        openMessages()
-                    }
-                    RazrViewState.MAIN_MENU -> {
-                        if (menuIndex % 3 > 0) {
-                            menuIndex--
-                            tonePlayer.playRazrChirp()
-                        }
-                    }
-                    else -> {}
-                }
-            },
-            onRight = {
-                when (viewState) {
-                    RazrViewState.STANDBY -> {
-                        openCamera()
-                    }
-                    RazrViewState.MAIN_MENU -> {
-                        if (menuIndex % 3 < 2) {
-                            menuIndex++
-                            tonePlayer.playRazrChirp()
-                        }
-                    }
-                    else -> {}
-                }
-            },
-            onCenter = {
-                when (viewState) {
-                    RazrViewState.IN_CALL -> {
-                        CallManager.hold(!isOnHold)
-                        tonePlayer.playRazrChirp()
-                    }
-                    RazrViewState.STANDBY -> {
-                        menuIndex = 0
-                        viewState = RazrViewState.MAIN_MENU
-                        tonePlayer.playRazrChirp()
-                    }
-                    RazrViewState.MAIN_MENU -> {
-                        val item = SYNERGY_MENU_ITEMS[menuIndex]
-                        when (item.id) {
-                            1 -> openContacts()
-                            2 -> openRecentCalls()
-                            3 -> openMessages()
-                            4 -> {
-                                listTitle = "Games & Apps"
-                                selectedAppIndex = 0
-                                viewState = RazrViewState.APPS_LIST
-                                tonePlayer.playRazrChirp()
-                            }
-                            5 -> {
-                                val gallery = Intent(Intent.ACTION_VIEW, MediaStore.Images.Media.EXTERNAL_CONTENT_URI).apply {
-                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                }
-                                runCatching { context.startActivity(gallery) }
-                            }
-                            6 -> {
-                                val browser = Intent(Intent.ACTION_VIEW, Uri.parse("https://google.com")).apply {
-                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                }
-                                runCatching { context.startActivity(browser) }
-                            }
-                            7 -> {
-                                val clock = Intent(AlarmClock.ACTION_SHOW_ALARMS).apply {
-                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                }
-                                runCatching { context.startActivity(clock) }
-                            }
-                            8 -> {
-                                val settingsIntent = Intent(AndroidSettings.ACTION_SETTINGS).apply {
-                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                }
-                                runCatching { context.startActivity(settingsIntent) }
-                            }
-                            9 -> openCamera()
-                            else -> {
-                                listTitle = item.title
-                                selectedAppIndex = 0
-                                viewState = RazrViewState.APPS_LIST
-                                tonePlayer.playRazrChirp()
-                            }
-                        }
-                    }
-                    RazrViewState.APPS_LIST -> {
-                        apps.getOrNull(selectedAppIndex)?.let {
-                            tonePlayer.playRazrChirp()
-                            repo.launch(it)
-                        }
-                    }
-                    RazrViewState.DIALING -> {
-                        startCall(dialedBuffer)
-                    }
-                }
-            },
-            onSoftLeft = {
-                when (viewState) {
-                    RazrViewState.IN_CALL -> {
-                        CallManager.mute(!isMuted)
-                        tonePlayer.playRazrChirp()
-                    }
-                    RazrViewState.STANDBY -> {
-                        openMessages()
-                    }
-                    RazrViewState.MAIN_MENU -> {
-                        val item = SYNERGY_MENU_ITEMS[menuIndex]
-                        when (item.id) {
-                            1 -> openContacts()
-                            2 -> openRecentCalls()
-                            3 -> openMessages()
-                            4 -> {
-                                listTitle = "Games & Apps"
-                                selectedAppIndex = 0
-                                viewState = RazrViewState.APPS_LIST
-                                tonePlayer.playRazrChirp()
-                            }
-                            9 -> openCamera()
-                            else -> {
-                                listTitle = item.title
-                                selectedAppIndex = 0
-                                viewState = RazrViewState.APPS_LIST
-                                tonePlayer.playRazrChirp()
-                            }
-                        }
-                    }
-                    RazrViewState.APPS_LIST -> {
-                        apps.getOrNull(selectedAppIndex)?.let {
-                            tonePlayer.playRazrChirp()
-                            repo.launch(it)
-                        }
-                    }
-                    RazrViewState.DIALING -> {
-                        startCall(dialedBuffer)
-                    }
-                }
-            },
-            onSoftRight = {
-                when (viewState) {
-                    RazrViewState.IN_CALL -> {
-                        CallManager.speaker(!isSpeaker)
-                        tonePlayer.playRazrChirp()
-                    }
-                    RazrViewState.STANDBY -> {
-                        openContacts()
-                    }
-                    RazrViewState.MAIN_MENU -> {
-                        viewState = RazrViewState.STANDBY
-                        tonePlayer.playRazrChirp()
-                    }
-                    RazrViewState.APPS_LIST -> {
-                        viewState = RazrViewState.STANDBY
-                        tonePlayer.playRazrChirp()
-                    }
-                    RazrViewState.DIALING -> {
-                        handleDialKey('C')
-                    }
-                }
-            },
-            onCall = {
-                when {
-                    isIncomingRinging -> { haptics.thud(); CallManager.answer() }
-                    viewState == RazrViewState.IN_CALL -> {
-                        CallManager.hold(!isOnHold)
-                        tonePlayer.playRazrChirp()
-                    }
-                    else -> startCall(dialedBuffer)
-                }
-            },
-            onEnd = {
-                if (viewState == RazrViewState.IN_CALL) {
-                    endCall()
-                } else {
-                    tonePlayer.playBusy()
+                },
+                onGlobe = {
+                    if (locked) { view = RazrView.UNLOCK; unlockEntry = "" } else openBrowser()
+                },
+                onEnvelope = {
+                    tonePlayer.playRazrChirp()
+                    if (locked) { view = RazrView.UNLOCK; unlockEntry = ""; unlockError = null }
+                    else { view = RazrView.INBOX; listIndex = 0 }
+                },
+                onVoice = {
+                    tonePlayer.playRazrChirp()
+                    toast = "VOICE COMMANDS"
+                    goHome()
+                },
+                onKey = { handleKey(it) },
+            )
+      } else {
+        // Flip closed: the inner panel is gone entirely. Only the lower shell
+        // (the outer face) remains, carrying the wallpaper, the clock, and any
+        // notification or message waiting for the user.
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            RazrCoverShell(
+                palette = palette,
+                modifier = Modifier.fillMaxSize(),
+                onOpen = {
                     haptics.thud()
-                    dialedBuffer = ""
-                    viewState = RazrViewState.STANDBY
+                    flapOpen = true
+                    tonePlayer.playRazrChirp()
+                },
+            ) {
+                Box(Modifier.fillMaxSize()) {
+                    when {
+                        isRinging -> RazrCoverEvent(
+                            palette = palette,
+                            headline = "INCOMING CALL",
+                            detail = connectedNumber,
+                        )
+
+                        locked -> RazrCoverLocked(
+                            palette = palette,
+                            onUnlock = {
+                                haptics.thud()
+                                requestSystemUnlock()
+                            },
+                        )
+
+                        else -> RazrCoverPanel(
+                            palette = palette,
+                            wallpaperRes = wallpaper,
+                            time = clockText,
+                            date = dateText,
+                            intercepted = intercepted,
+                            unread = unread,
+                            messages = messages,
+                            missedCalls = missedCalls,
+                        )
+                    }
                 }
-            },
-            onKey = ::handleDialKey,
-            onKeyLongPress = { char ->
-                handleDialKey(char)
             }
+        }
+      }
+    }
+}
+
+/** Every internal-panel view, driven purely by the [RazrView] state. */
+@Composable
+private fun ActiveView(
+    view: RazrView,
+    palette: RazrPalette,
+    settings: Settings,
+    wallpaperRes: Int,
+    apps: List<AppInfo>,
+    messages: List<Headline>,
+    menuIndex: Int,
+    subIndex: Int,
+    listIndex: Int,
+    dialBuffer: String,
+    clockText: String,
+    dateText: String,
+    callSeconds: Int,
+    callStatus: String,
+    number: String,
+    rateText: String,
+    costText: String,
+    isMuted: Boolean,
+    isOnHold: Boolean,
+    isSpeaker: Boolean,
+    batteryPct: Int,
+    missedCalls: Int,
+    lastDialed: String,
+) {
+    when (view) {
+        RazrView.STANDBY -> RazrHomeScreen(
+            palette = palette,
+            wallpaperRes = wallpaperRes,
+            time = clockText,
+            amPm = "",
+            date = dateText,
         )
+
+        RazrView.DIALING -> RazrDialingScreen(palette, dialBuffer, null)
+
+        RazrView.MAIN_MENU -> RazrIconGrid(palette, RAZR_MAIN_MENU, menuIndex)
+
+        RazrView.SETTINGS -> RazrIconGrid(palette, RAZR_SETTINGS_MENU, subIndex)
+
+        RazrView.TOOLS -> RazrIconGrid(palette, RAZR_TOOLS_MENU, subIndex)
+
+        RazrView.MESSAGES -> RazrMessageMenu(palette, subIndex)
+
+        RazrView.INBOX -> RazrInboxList(palette, messages, listIndex)
+
+        RazrView.APPS_LIST -> RazrListScreen(
+            palette = palette,
+            title = "Games & Apps",
+            entries = apps,
+            selectedIndex = listIndex,
+            emptyText = "NO APPS FOUND",
+            primary = { app: AppInfo -> app.label },
+        )
+
+        RazrView.CALLS -> RazrListScreen(
+            palette = palette,
+            title = "Recent Calls",
+            entries = listOf(
+                "Missed calls: $missedCalls",
+                "Notepad: ${lastDialed.ifBlank { "-" }}",
+            ),
+            selectedIndex = 0,
+            emptyText = "NO CALLS YET",
+            primary = { it },
+        )
+
+        RazrView.RINGTONES -> RazrRingStyleScreen(
+            palette = palette,
+            styles = RAZR_RING_STYLES.map { it.glyph to it.name },
+            selectedIndex = settings.razrRingStyleIndex,
+        )
+
+        RazrView.THEME -> RazrThemeScreen(
+            palette = palette,
+            names = RazrSkin.entries.map { it.label },
+            selectedIndex = settings.razrSkin.ordinal,
+        )
+
+        RazrView.IN_CALL -> RazrInCallScreen(
+            palette = palette,
+            number = number,
+            timer = String.format(Locale.ROOT, "%02d:%02d", callSeconds / 60, callSeconds % 60),
+            status = callStatus,
+            rate = rateText,
+            cost = costText,
+            muted = isMuted,
+            onHold = isOnHold,
+            speaker = isSpeaker,
+        )
+
+        RazrView.INCOMING -> RazrIncomingCallScreen(palette, number)
+
+        RazrView.CALCULATOR -> RazrCalculatorPanel(
+            palette = palette,
+            rateText = rateText,
+            costText = costText,
+            callSeconds = callSeconds,
+            batteryPct = batteryPct,
+        )
+
+        RazrView.ABOUT -> RazrAboutScreen(palette)
+
+        else -> RazrHomeScreen(
+            palette = palette,
+            wallpaperRes = wallpaperRes,
+            time = clockText,
+            amPm = "",
+            date = dateText,
+        )
+    }
+}
+
+/** Messages sub-menu, showing the routing rule Mode 7 applies. */
+@Composable
+private fun RazrMessageMenu(palette: RazrPalette, selected: Int) {
+    Column(
+        Modifier.fillMaxSize().padding(horizontal = 5.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(2.dp))
+                .background(palette.ink),
+            contentAlignment = Alignment.Center,
+        ) {
+            RazrInkText("MESSAGES", palette.lcdBacklight, 8.sp, FontWeight.Black)
+        }
+        Column(
+            Modifier.weight(1f).fillMaxWidth(),
+            verticalArrangement = Arrangement.SpaceEvenly,
+        ) {
+            listOf(
+                "1" to "Message Inbox",
+                "2" to "Voicemail",
+                "3" to "Messaging App",
+            ).forEachIndexed { index, (key, label) ->
+                val sel = index == selected
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    RazrInkText(if (sel) ">" else " ", palette.ink, 6.sp, FontWeight.Black)
+                    RazrInkText(key, palette.accent, 7.sp, FontWeight.Black)
+                    RazrInkText(label, palette.ink, 7.sp, if (sel) FontWeight.Bold else FontWeight.Normal)
+                }
+            }
+        }
+        RazrRoutingHint(palette)
+    }
+}
+
+/** Calculator page, wired to live call-cost and battery telemetry. */
+@Composable
+private fun RazrCalculatorPanel(
+    palette: RazrPalette,
+    rateText: String,
+    costText: String,
+    callSeconds: Int,
+    batteryPct: Int,
+) {
+    Column(
+        Modifier.fillMaxSize().padding(horizontal = 6.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(2.dp))
+                .background(palette.ink),
+            contentAlignment = Alignment.Center,
+        ) {
+            RazrInkText("CALCULATOR", palette.lcdBacklight, 7.5.sp, FontWeight.Black)
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            RazrInkText("RATE", palette.inkDim, 6.sp, FontWeight.Normal)
+            RazrInkText(rateText, palette.ink, 6.sp, FontWeight.Bold)
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            RazrInkText("CURRENT CALL", palette.inkDim, 6.sp, FontWeight.Normal)
+            RazrInkText(costText, palette.ink, 6.sp, FontWeight.Bold)
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            RazrInkText("TALK TIME", palette.inkDim, 6.sp, FontWeight.Normal)
+            RazrInkText(
+                String.format(Locale.ROOT, "%02d:%02d", callSeconds / 60, callSeconds % 60),
+                palette.ink,
+                6.sp,
+                FontWeight.Bold,
+            )
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            RazrInkText("BATTERY", palette.inkDim, 6.sp, FontWeight.Normal)
+            RazrInkText("$batteryPct%", palette.ink, 6.sp, FontWeight.Bold)
+        }
+        RazrInkText(
+            "TAP DIGITS TO DIAL - CENTRE TO CALL",
+            palette.inkDim,
+            5.5.sp,
+            FontWeight.Normal,
+        )
+    }
+}
+
+@Composable
+private fun RazrInkText(text: String, color: Color, size: TextUnit, weight: FontWeight) {
+    Text(
+        text = text,
+        color = color,
+        fontFamily = FontFamily.Monospace,
+        fontSize = size,
+        fontWeight = weight,
+        maxLines = 1,
+    )
+}
+
+private fun hasCallPermission(context: Context): Boolean =
+    ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) ==
+        PackageManager.PERMISSION_GRANTED
+
+private fun isDefaultDialer(context: Context): Boolean {
+    val tm = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
+    return tm.defaultDialerPackage == context.packageName
+}
+
+private fun requestDialerRole(context: Context, launch: (Intent) -> Unit) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        val rm = context.getSystemService(RoleManager::class.java)
+        if (rm.isRoleAvailable(RoleManager.ROLE_DIALER) && !rm.isRoleHeld(RoleManager.ROLE_DIALER)) {
+            launch(rm.createRequestRoleIntent(RoleManager.ROLE_DIALER))
+        }
     }
 }

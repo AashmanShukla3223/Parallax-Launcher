@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -33,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.parallax.parallaxlauncher.core.data.AppsRepository
 import com.parallax.parallaxlauncher.core.haptics.HapticEngine
+import com.parallax.parallaxlauncher.core.notifications.NotificationFeed
 import com.parallax.parallaxlauncher.core.sensor.SensorHub
 import com.parallax.parallaxlauncher.core.settings.SettingsRepository
 import com.parallax.parallaxlauncher.core.telemetry.TelemetryService
@@ -80,6 +82,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+        } else {
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
+        }
         enableEdgeToEdge()
         repo = AppsRepository(this)
         telemetry = TelemetryService(this).also { it.start() }
@@ -92,6 +100,9 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val s by settingsRepo.state.collectAsState()
+            // Keep the notification router in sync so Mode 7 knows whether it owns
+            // incoming alerts (launcher in front) or must defer to Android.
+            LaunchedEffect(s.mode) { NotificationFeed.setActiveMode(s.mode) }
             ParallaxLauncherTheme(
                 accentId = s.accentColorId,
                 backgroundId = s.backgroundColorId,
@@ -127,7 +138,7 @@ class MainActivity : ComponentActivity() {
                             4 -> CyberdeckScreen(repo, telemetry, haptics, s.crt)
                             5 -> CineCamScreen(repo, sensors, telemetry, haptics, s)
                             6 -> TelecomRotaryScreen(repo, haptics)
-                            7 -> RazrV3iScreen(repo, telemetry, haptics, s)
+                            7 -> RazrV3iScreen(repo, telemetry, haptics, s, settingsRepo::update)
                             else -> IndustrialRigScreen(repo, telemetry, haptics, s.detentDeg)
                         }
                         Row(
@@ -168,11 +179,16 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        NotificationFeed.setLauncherForeground(true)
+        NotificationFeed.setActiveMode(settingsRepo.state.value.mode)
         isDefault = checkDefault()
         sensors.start()
     }
 
     override fun onPause() {
+        // Backgrounded: stop intercepting so posting apps raise their own
+        // standard Android notifications again.
+        NotificationFeed.setLauncherForeground(false)
         sensors.stop()
         super.onPause()
     }

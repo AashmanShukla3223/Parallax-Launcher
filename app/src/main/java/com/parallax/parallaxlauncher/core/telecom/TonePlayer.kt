@@ -1,10 +1,13 @@
 package com.parallax.parallaxlauncher.core.telecom
 
+import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
+import android.media.MediaPlayer
 import android.media.ToneGenerator
+import com.parallax.parallaxlauncher.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -20,6 +23,8 @@ class TonePlayer {
     } catch (_: Exception) {
         null
     }
+
+    private var helloMotoPlayer: MediaPlayer? = null
 
     private val sampleRate = 44100
 
@@ -145,10 +150,39 @@ class TonePlayer {
         }
     }
 
+    fun playHelloMoto(context: Context) {
+        scope.launch(Dispatchers.Main) {
+            try {
+                helloMotoPlayer?.stop()
+                helloMotoPlayer?.release()
+                helloMotoPlayer = MediaPlayer.create(context.applicationContext, R.raw.hello_moto)?.apply {
+                    setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_MEDIA)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                            .build()
+                    )
+                    setOnCompletionListener {
+                        it.release()
+                        if (helloMotoPlayer === it) helloMotoPlayer = null
+                    }
+                    start()
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("TonePlayer", "Error playing hello moto: ${e.message}", e)
+            }
+        }
+    }
+
     fun release() {
         try {
             toneGenerator?.release()
             toneGenerator = null
+        } catch (_: Exception) {}
+        try {
+            helloMotoPlayer?.stop()
+            helloMotoPlayer?.release()
+            helloMotoPlayer = null
         } catch (_: Exception) {}
     }
 }
