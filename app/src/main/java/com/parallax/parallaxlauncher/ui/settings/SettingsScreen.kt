@@ -43,7 +43,7 @@ import androidx.compose.runtime.remember
 import com.parallax.parallaxlauncher.core.settings.Settings
 import com.parallax.parallaxlauncher.ui.modes.razr.RAZR_RING_STYLES
 import com.parallax.parallaxlauncher.ui.modes.razr.RazrPalette
-import com.parallax.parallaxlauncher.ui.modes.razr.RazrSkin
+import com.parallax.parallaxlauncher.ui.modes.razr.RazrFinish
 import com.parallax.parallaxlauncher.ui.modes.razr.RazrWallpapers
 import com.parallax.parallaxlauncher.ui.theme.AccentColor
 import com.parallax.parallaxlauncher.ui.theme.LocalParallaxPalette
@@ -217,7 +217,7 @@ fun SettingsScreen(
         Section("07 MOTOROLA RAZR V3i - SKIN & PERSONALIZE", mono(11, accentDim, true))
         Text("QUARTZ FINISH", style = mono(12))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            RazrSkin.entries.forEach { skin ->
+            RazrFinish.entries.forEach { skin ->
                 val selected = settings.razrSkin == skin
                 val swatch = RazrPalette.of(skin)
                 Column(
@@ -349,9 +349,44 @@ fun SettingsScreen(
                 )
             }
         }
+        val minorSymbol = if (settings.callCurrencyIndex <= 1) "p" else "¢"
+        val majorSymbol = currencies.getOrElse(settings.callCurrencyIndex) { "₹" }.split(" ")[0]
+
         SliderRow(
-            label = "TALK TIME RATE / MIN",
-            display = "${currencies.getOrElse(settings.callCurrencyIndex) { "₹" }.split(" ")[0]} " + String.format(Locale.ROOT, "%.2f", settings.callTariffRate),
+            label = "PER SECOND (MINOR UNITS)",
+            display = "$minorSymbol ${trimRate(settings.callPerSecondRate)} / sec",
+            value = settings.callPerSecondRate,
+            range = 0.1f..100f,
+            accent = accent,
+            style = mono(13)
+        ) { v ->
+            onChange { it.copy(callPerSecondRate = (v * 10).roundToInt() / 10f) }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf(
+                "6 PAISE" to 6f,
+                "0.20 CENTS" to 0.2f,
+                "1 PAISE" to 1f,
+            ).forEach { (label, value) ->
+                val selected = kotlin.math.abs(settings.callPerSecondRate - value) < 0.05f
+                Text(
+                    label,
+                    style = mono(10, if (selected) Color.Black else Color.White, selected),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(if (selected) accent else Steel)
+                        .clickable { onChange { it.copy(callPerSecondRate = value) } }
+                        .padding(vertical = 8.dp),
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                )
+            }
+        }
+
+        SliderRow(
+            label = "PER COMPLETED MINUTE (MAJOR UNITS)",
+            display = "$majorSymbol ${trimRate(settings.callTariffRate)} / min",
             value = settings.callTariffRate,
             range = 0.1f..10.0f,
             accent = accent,
@@ -359,6 +394,12 @@ fun SettingsScreen(
         ) { v ->
             onChange { it.copy(callTariffRate = (v * 10).roundToInt() / 10f) }
         }
+
+        Text("BOTH RATES ACCRUE AND ARE SUMMED", style = mono(11, accent, true))
+        Text(
+            "100 PAISE = 1 RUPEE   •   100 CENTS = 1 DOLLAR",
+            style = mono(10, Color.White)
+        )
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("RINGTONE", style = mono(12), modifier = Modifier.weight(1f))
@@ -406,6 +447,11 @@ fun SettingsScreen(
         Key("RESET ALL SETTINGS", onClick = onReset, style = mono(13, accent, true))
     }
 }
+
+/** Trims trailing zeros so 6.0 reads "6" and 0.20 reads "0.2". */
+private fun trimRate(v: Float): String =
+    if (v == v.toInt().toFloat()) v.toInt().toString()
+    else String.format(Locale.ROOT, "%.2f", v).trimEnd('0').trimEnd('.')
 
 @Composable
 private fun Section(title: String, style: TextStyle) {

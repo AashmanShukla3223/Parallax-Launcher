@@ -22,6 +22,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
@@ -234,7 +237,12 @@ fun RazrCoverShell(
     }
 }
 
-/** Bottom chin speaker slots. */
+/**
+ * Bottom chin speaker slots.
+ *
+ * On the real handset these are electroluminescent — nine vertical slots glowing
+ * electric blue — rather than plain drilled holes.
+ */
 @Composable
 fun SpeakerGrille(palette: RazrPalette, modifier: Modifier = Modifier) {
     Canvas(
@@ -247,40 +255,35 @@ fun SpeakerGrille(palette: RazrPalette, modifier: Modifier = Modifier) {
         val w = gap * 0.7f
         for (i in 0 until slots) {
             val x = i * gap * 2f + gap * 0.2f
+            val topLeft = Offset(x, 0f)
+            val slotSize = Size(w, size.height)
+            // Glow bleed.
+            drawRoundRect(
+                color = palette.grilleGlow.copy(alpha = 0.35f),
+                topLeft = topLeft,
+                size = slotSize,
+                cornerRadius = CornerRadius(w / 2f),
+            )
+            // Lit slot.
+            drawRoundRect(
+                color = palette.grilleGlow,
+                topLeft = Offset(x + w * 0.22f, size.height * 0.16f),
+                size = Size(w * 0.56f, size.height * 0.68f),
+                cornerRadius = CornerRadius(w * 0.28f),
+            )
+            // Dark surround.
             drawRoundRect(
                 color = palette.chassisEdge,
-                topLeft = androidx.compose.ui.geometry.Offset(x, 0f),
-                size = androidx.compose.ui.geometry.Size(w, size.height),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(w / 2f),
+                topLeft = topLeft,
+                size = slotSize,
+                cornerRadius = CornerRadius(w / 2f),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = w * 0.14f),
             )
         }
     }
 }
 
-/** Small persistent banner used for call summaries and ring-style changes. */
-@Composable
-fun RazrToast(
-    palette: RazrPalette,
-    text: String,
-    modifier: Modifier = Modifier,
-    tone: Color? = null,
-) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(2.dp))
-            .background((tone ?: palette.ink).copy(alpha = 0.9f))
-            .padding(horizontal = 4.dp, vertical = 2.dp)
-    ) {
-        Text(
-            text = text,
-            color = palette.lcdBacklight,
-            fontFamily = FontFamily.Monospace,
-            fontSize = 6.5.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 3,
-        )
-    }
-}
+// The transient toast banner lives in RazrViews.kt (single definition).
 
 /** Screen-lock overlay drawn over whichever view is active. */
 @Composable

@@ -65,10 +65,12 @@ import com.parallax.parallaxlauncher.core.telecom.TonePlayer
 import com.parallax.parallaxlauncher.core.telecom.VintageCarrierResolver
 import com.parallax.parallaxlauncher.core.telemetry.TelemetryService
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrAboutScreen
-import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrCoverEvent
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrCoverLocked
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrCoverPanel
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrCoverShell
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrCoverLocked
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrCoverPanel
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrCalculatorPanel
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrDialingScreen
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrHinge
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrHomeScreen
@@ -78,12 +80,15 @@ import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrIncomingCallSc
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrInboxList
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrKeypad
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrListScreen
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrMessageMenu
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrNotificationAlert
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrPixelScreen
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrRingStyleScreen
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrRoutingHint
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrSoftKeyBar
-import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrStatusBar
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrStatusStrip
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrStatusGlyphs
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrTitleBar
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrThemeScreen
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrToast
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrUnlockScreen
@@ -173,14 +178,30 @@ fun RazrV3iScreen(
             0 -> "₹"; 1 -> "p"; 2 -> "$"; else -> "¢"
         }
     }
-    val callCost = remember(callSeconds, settings.callTariffRate) {
-        (callSeconds / 60) * settings.callTariffRate
+    // Two rates accrue and are summed:
+    //   per-second   -> minor units (paise / cents), 100 minor = 1 major
+    //   per-minute   -> major units (rupee / dollar), one whole unit per
+    //                   completed minute
+    val completedMinutes = callSeconds / 60
+    val secondsAccruedMajor = settings.callPerSecondRate * callSeconds / 100f
+    val minutesAccruedMajor = completedMinutes * settings.callTariffRate
+    val totalCostMajor = secondsAccruedMajor + minutesAccruedMajor
+
+    val minorSymbol = if (settings.callCurrencyIndex == 0 || settings.callCurrencyIndex == 1) "p" else "\u00A2"
+    val perSecondLabel = remember(settings.callPerSecondRate, minorSymbol) {
+        "$minorSymbol${trimNumber(settings.callPerSecondRate)}/sec"
     }
-    val rateText = remember(settings.callTariffRate, currencySymbol) {
-        "$currencySymbol${String.format(Locale.ROOT, "%.2f", settings.callTariffRate)}/min"
+    val perMinuteLabel = remember(settings.callTariffRate, currencySymbol) {
+        "$currencySymbol${trimNumber(settings.callTariffRate)}/min"
     }
-    val costText = remember(callCost, currencySymbol) {
-        "$currencySymbol${String.format(Locale.ROOT, "%.2f", callCost)}"
+    val secondsChargedLabel = remember(secondsAccruedMajor, minorSymbol) {
+        "$minorSymbol${trimNumber(secondsAccruedMajor * 100f)}"
+    }
+    val minutesChargedLabel = remember(minutesAccruedMajor, currencySymbol) {
+        "$currencySymbol${trimNumber(minutesAccruedMajor)}"
+    }
+    val totalLabel = remember(totalCostMajor, currencySymbol) {
+        "$currencySymbol${trimNumber(totalCostMajor)}"
     }
 
     // ---- Permissions and roles -------------------------------------------------
@@ -288,8 +309,7 @@ fun RazrV3iScreen(
         if (l.state == Call.STATE_DISCONNECTED) {
             tonePlayer.playBusy()
             val dur = String.format(Locale.ROOT, "%02d:%02d", callSeconds / 60, callSeconds % 60)
-            toast = "ENDED - $dur - CHARGED $currencySymbol" +
-                String.format(Locale.ROOT, "%.2f", callCost)
+            toast = "ENDED - $dur - CHARGED $totalLabel"
             CallManager.clearFinished()
             dialBuffer = ""
             view = RazrView.STANDBY
@@ -537,7 +557,7 @@ fun RazrV3iScreen(
                 if (subIndex <= RAZR_TOOLS_MENU.size - 4) { subIndex += 3; tonePlayer.playRazrChirp() }
             view == RazrView.MESSAGES -> if (subIndex < 2) { subIndex += 1; tonePlayer.playRazrChirp() }
             view == RazrView.THEME ->
-                if (subIndex < RazrSkin.entries.lastIndex) { subIndex += 1; tonePlayer.playRazrChirp() }
+                if (subIndex < RazrFinish.entries.lastIndex) { subIndex += 1; tonePlayer.playRazrChirp() }
             view == RazrView.APPS_LIST ->
                 if (listIndex < apps.lastIndex) { listIndex += 1; tonePlayer.playRazrChirp() }
             view == RazrView.INBOX ->
@@ -582,7 +602,7 @@ fun RazrV3iScreen(
             }
             RazrView.THEME -> {
                 onSettingsChange {
-                    it.copy(razrSkin = RazrSkin.entries[subIndex.coerceIn(RazrSkin.entries.indices)])
+                    it.copy(razrSkin = RazrFinish.entries[subIndex.coerceIn(RazrFinish.entries.indices)])
                 }
                 toast = "THEME APPLIED"
                 goHome()
@@ -668,22 +688,25 @@ fun RazrV3iScreen(
         RazrUpperShell(palette, Modifier.weight(1f).fillMaxWidth()) {
             RazrPixelScreen(palette = palette, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.fillMaxSize()) {
-                    RazrStatusBar(
-                        palette = palette,
-                        carrierName = carrierName,
-                        signalBars = 3,
-                        batteryPercent = telemetryState.batteryPct.coerceAtLeast(0),
-                        charging = telemetryState.charging,
-                        unreadMessages = unread,
-                        ringStyleGlyph = RAZR_RING_STYLES[
-                            settings.razrRingStyleIndex.coerceIn(RAZR_RING_STYLES.indices)
-                        ].glyph,
-                    )
+                    RazrStatusStrip(palette) {
+                        RazrStatusGlyphs(
+                            palette = palette,
+                            signalBars = 3,
+                            batteryPercent = telemetryState.batteryPct.coerceAtLeast(0),
+                            charging = telemetryState.charging,
+                            unreadMessages = unread,
+                            ringStyleName = RAZR_RING_STYLES[
+                                settings.razrRingStyleIndex.coerceIn(RAZR_RING_STYLES.indices)
+                            ].name,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    RazrTitleBar(palette, titleFor(view, isRinging))
 
                     Box(Modifier.weight(1f).fillMaxWidth()) {
                         when {
                             isRinging -> RazrIncomingCallScreen(palette, connectedNumber)
-                            locked -> RazrUnlockScreen(palette, unlockEntry, unlockError)
+                            locked -> RazrUnlockScreen(palette, unlockError)
                             else -> ActiveView(
                                 view = view,
                                 palette = palette,
@@ -705,8 +728,11 @@ fun RazrV3iScreen(
                                     else -> "CONNECTED"
                                 },
                                 number = connectedNumber,
-                                rateText = rateText,
-                                costText = costText,
+                                perSecondLabel = perSecondLabel,
+                                perMinuteLabel = perMinuteLabel,
+                                secondsChargedLabel = secondsChargedLabel,
+                                minutesChargedLabel = minutesChargedLabel,
+                                totalLabel = totalLabel,
                                 isMuted = isMuted,
                                 isOnHold = isOnHold,
                                 isSpeaker = isSpeaker,
@@ -721,7 +747,11 @@ fun RazrV3iScreen(
                             Modifier.fillMaxSize().padding(3.dp),
                             verticalArrangement = Arrangement.Top,
                         ) {
-                            RazrNotificationAlert(palette, intercepted)
+                            RazrNotificationAlert(
+                                palette = palette,
+                                alert = intercepted,
+                                onOpenMessaging = { openMessaging() },
+                            )
                         }
 
                         toast?.let { message ->
@@ -803,12 +833,6 @@ fun RazrV3iScreen(
             ) {
                 Box(Modifier.fillMaxSize()) {
                     when {
-                        isRinging -> RazrCoverEvent(
-                            palette = palette,
-                            headline = "INCOMING CALL",
-                            detail = connectedNumber,
-                        )
-
                         locked -> RazrCoverLocked(
                             palette = palette,
                             onUnlock = {
@@ -853,8 +877,11 @@ private fun ActiveView(
     callSeconds: Int,
     callStatus: String,
     number: String,
-    rateText: String,
-    costText: String,
+    perSecondLabel: String,
+    perMinuteLabel: String,
+    secondsChargedLabel: String,
+    minutesChargedLabel: String,
+    totalLabel: String,
     isMuted: Boolean,
     isOnHold: Boolean,
     isSpeaker: Boolean,
@@ -879,7 +906,11 @@ private fun ActiveView(
 
         RazrView.TOOLS -> RazrIconGrid(palette, RAZR_TOOLS_MENU, subIndex)
 
-        RazrView.MESSAGES -> RazrMessageMenu(palette, subIndex)
+        RazrView.MESSAGES -> RazrMessageMenu(
+            palette = palette,
+            entries = RAZR_MESSAGE_ENTRIES,
+            selectedIndex = subIndex,
+        )
 
         RazrView.INBOX -> RazrInboxList(palette, messages, listIndex)
 
@@ -906,13 +937,13 @@ private fun ActiveView(
 
         RazrView.RINGTONES -> RazrRingStyleScreen(
             palette = palette,
-            styles = RAZR_RING_STYLES.map { it.glyph to it.name },
+            names = RAZR_RING_STYLES.map { it.name },
             selectedIndex = settings.razrRingStyleIndex,
         )
 
         RazrView.THEME -> RazrThemeScreen(
             palette = palette,
-            names = RazrSkin.entries.map { it.label },
+            names = RazrFinish.entries.map { it.label },
             selectedIndex = settings.razrSkin.ordinal,
         )
 
@@ -921,8 +952,11 @@ private fun ActiveView(
             number = number,
             timer = String.format(Locale.ROOT, "%02d:%02d", callSeconds / 60, callSeconds % 60),
             status = callStatus,
-            rate = rateText,
-            cost = costText,
+            perSecondLabel = perSecondLabel,
+            perMinuteLabel = perMinuteLabel,
+            secondsChargedLabel = secondsChargedLabel,
+            minutesChargedLabel = minutesChargedLabel,
+            totalLabel = totalLabel,
             muted = isMuted,
             onHold = isOnHold,
             speaker = isSpeaker,
@@ -932,8 +966,8 @@ private fun ActiveView(
 
         RazrView.CALCULATOR -> RazrCalculatorPanel(
             palette = palette,
-            rateText = rateText,
-            costText = costText,
+            rateText = perMinuteLabel,
+            costText = totalLabel,
             callSeconds = callSeconds,
             batteryPct = batteryPct,
         )
@@ -950,106 +984,6 @@ private fun ActiveView(
     }
 }
 
-/** Messages sub-menu, showing the routing rule Mode 7 applies. */
-@Composable
-private fun RazrMessageMenu(palette: RazrPalette, selected: Int) {
-    Column(
-        Modifier.fillMaxSize().padding(horizontal = 5.dp, vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(3.dp),
-    ) {
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(2.dp))
-                .background(palette.ink),
-            contentAlignment = Alignment.Center,
-        ) {
-            RazrInkText("MESSAGES", palette.lcdBacklight, 8.sp, FontWeight.Black)
-        }
-        Column(
-            Modifier.weight(1f).fillMaxWidth(),
-            verticalArrangement = Arrangement.SpaceEvenly,
-        ) {
-            listOf(
-                "1" to "Message Inbox",
-                "2" to "Voicemail",
-                "3" to "Messaging App",
-            ).forEachIndexed { index, (key, label) ->
-                val sel = index == selected
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    RazrInkText(if (sel) ">" else " ", palette.ink, 6.sp, FontWeight.Black)
-                    RazrInkText(key, palette.accent, 7.sp, FontWeight.Black)
-                    RazrInkText(label, palette.ink, 7.sp, if (sel) FontWeight.Bold else FontWeight.Normal)
-                }
-            }
-        }
-        RazrRoutingHint(palette)
-    }
-}
-
-/** Calculator page, wired to live call-cost and battery telemetry. */
-@Composable
-private fun RazrCalculatorPanel(
-    palette: RazrPalette,
-    rateText: String,
-    costText: String,
-    callSeconds: Int,
-    batteryPct: Int,
-) {
-    Column(
-        Modifier.fillMaxSize().padding(horizontal = 6.dp, vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(2.dp))
-                .background(palette.ink),
-            contentAlignment = Alignment.Center,
-        ) {
-            RazrInkText("CALCULATOR", palette.lcdBacklight, 7.5.sp, FontWeight.Black)
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            RazrInkText("RATE", palette.inkDim, 6.sp, FontWeight.Normal)
-            RazrInkText(rateText, palette.ink, 6.sp, FontWeight.Bold)
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            RazrInkText("CURRENT CALL", palette.inkDim, 6.sp, FontWeight.Normal)
-            RazrInkText(costText, palette.ink, 6.sp, FontWeight.Bold)
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            RazrInkText("TALK TIME", palette.inkDim, 6.sp, FontWeight.Normal)
-            RazrInkText(
-                String.format(Locale.ROOT, "%02d:%02d", callSeconds / 60, callSeconds % 60),
-                palette.ink,
-                6.sp,
-                FontWeight.Bold,
-            )
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            RazrInkText("BATTERY", palette.inkDim, 6.sp, FontWeight.Normal)
-            RazrInkText("$batteryPct%", palette.ink, 6.sp, FontWeight.Bold)
-        }
-        RazrInkText(
-            "TAP DIGITS TO DIAL - CENTRE TO CALL",
-            palette.inkDim,
-            5.5.sp,
-            FontWeight.Normal,
-        )
-    }
-}
-
-@Composable
-private fun RazrInkText(text: String, color: Color, size: TextUnit, weight: FontWeight) {
-    Text(
-        text = text,
-        color = color,
-        fontFamily = FontFamily.Monospace,
-        fontSize = size,
-        fontWeight = weight,
-        maxLines = 1,
-    )
-}
 
 private fun hasCallPermission(context: Context): Boolean =
     ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) ==
@@ -1067,4 +1001,33 @@ private fun requestDialerRole(context: Context, launch: (Intent) -> Unit) {
             launch(rm.createRequestRoleIntent(RoleManager.ROLE_DIALER))
         }
     }
+}
+
+/** Trims trailing zeros so 6.0 reads as "6" and 0.20 as "0.2". */
+private fun trimNumber(v: Float): String =
+    if (v == v.toInt().toFloat()) v.toInt().toString()
+    else String.format(Locale.ROOT, "%.2f", v).trimEnd('0').trimEnd('.')
+
+/** Messages sub-menu entries, mirroring the manual's Messages chapter. */
+private val RAZR_MESSAGE_ENTRIES = listOf(
+    RazrIcon.INBOX to "Message Inbox",
+    RazrIcon.VOICEMAIL to "Voicemail",
+    RazrIcon.MESSAGES to "Messaging App",
+)
+
+/** Title shown in the pale title bar for the current view. */
+private fun titleFor(view: RazrView, isRinging: Boolean): String = when {
+    isRinging -> "Incoming Call"
+    view == RazrView.CALLS -> "Recent Calls"
+    view == RazrView.APPS_LIST -> "Games & Apps"
+    view == RazrView.INBOX -> "Message Inbox"
+    view == RazrView.RINGTONES -> "Ring Styles"
+    view == RazrView.THEME -> "Themes"
+    view == RazrView.TOOLS -> "Tools"
+    view == RazrView.IN_CALL -> "In Call"
+    view == RazrView.DIALING -> "Dialing"
+    view == RazrView.MESSAGES -> "Messages"
+    view == RazrView.ABOUT -> "Phone Status"
+    view == RazrView.CALCULATOR -> "Calculator"
+    else -> "RAZR V3i"
 }

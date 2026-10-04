@@ -2,190 +2,157 @@ package com.parallax.parallaxlauncher.ui.modes.razr.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.parallax.parallaxlauncher.core.haptics.HapticEngine
+import com.parallax.parallaxlauncher.ui.modes.razr.RazrKey
 import com.parallax.parallaxlauncher.ui.modes.razr.RazrKeypadLayout
 import com.parallax.parallaxlauncher.ui.modes.razr.RazrPalette
 
-private val GreenCall = Color(0xFF17C964)
-private val GreenCallDim = Color(0xFF0B5C2E)
-private val RedEnd = Color(0xFFE23B2E)
-private val RedEndDim = Color(0xFF5E1610)
+private val GreenCall = Color(0xFF3FD35F)
+private val RedPower = Color(0xFFE8453A)
+private val BracketBlue = Color(0xFF3A5BFF)
 
 /**
- * The V3i lower clamshell: laser-etched electric-blue grooves tracing the
- * signature "keyhole" outline around the D-pad deck, then three rows of keys
- * hung beneath it, with the green send and red power keys flanking the D-pad.
+ * The V3i lower clamshell.
  *
- * Layout mirrors the physical handset exactly: soft keys outermost, globe and
- * envelope keys next to the nav rocker, green/red below them, 12 keys last.
+ * The key insight from the reference photograph is that the keypad is **not** a
+ * grid of separate key tiles. It is one continuous sheet of brushed metal with
+ * the electric-blue laser etch cut into it. The etch forms three vertical
+ * channels — outer two wide, centre one narrow — and each key is simply the gap
+ * bracketed by a horizontal etch line across its channel. That narrow centre
+ * channel is what gives the V3i deck its waisted silhouette.
+ *
+ * Legends mirror at the centre column exactly as on the handset: the letter
+ * group sits to the *right* of 2, 5 and 8 but to the *left* of 3, 6 and 9, with
+ * letters small and raised while digits are large.
  */
 @Composable
 fun RazrKeypad(
     palette: RazrPalette,
     modifier: Modifier = Modifier,
     haptics: HapticEngine,
-    /** Navigation rocker. */
     onUp: () -> Unit,
     onDown: () -> Unit,
     onLeft: () -> Unit,
     onRight: () -> Unit,
     onCenter: () -> Unit,
-    /** Left/right soft keys. */
     onSoftLeft: () -> Unit,
     onSoftRight: () -> Unit,
-    /** Green handset / red power. */
     onCall: () -> Unit,
     onEnd: () -> Unit,
-    /** Globe (browser) and envelope (messages) dedicated keys. */
     onGlobe: () -> Unit,
     onEnvelope: () -> Unit,
-    /** Voice key, above the D-pad. */
     onVoice: () -> Unit,
     onKey: (Char) -> Unit,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp, bottomStart = 20.dp, bottomEnd = 20.dp))
-            .background(
-                Brush.verticalGradient(listOf(palette.deckTop, palette.deckMid, palette.deckLow))
-            )
-            .border(1.5.dp, palette.deckEdge, RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp, bottomStart = 20.dp, bottomEnd = 20.dp))
-            .padding(horizontal = 8.dp, vertical = 6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+    BoxWithConstraints(
+        modifier = modifier.fillMaxWidth()
     ) {
-        // Blue etch groove network painted across the whole deck.
-        Canvas(Modifier.fillMaxWidth().weight(1f)) {
-            val g = size.minDimension * 0.028f
-            val topY = size.height * 0.055f
-            val deckBottom = size.height * 0.395f
-            val grooveColor = palette.groove
+        val w = maxWidth
+        val h = maxHeight
 
-            // Outer "keyhole" ring around the D-pad deck.
-            val ringLeft = size.width * 0.06f
-            val ringRight = size.width * 0.94f
-            drawRoundRect(
-                color = grooveColor,
-                topLeft = Offset(ringLeft, topY),
-                size = Size(ringRight - ringLeft, deckBottom - topY),
-                cornerRadius = CornerRadius(g * 3.2f),
-                style = Stroke(width = g),
-            )
-            // Glow pass under the etch for the backlit look.
-            drawRoundRect(
-                color = palette.grooveGlow.copy(alpha = 0.35f),
-                topLeft = Offset(ringLeft, topY),
-                size = Size(ringRight - ringLeft, deckBottom - topY),
-                cornerRadius = CornerRadius(g * 3.2f),
-                style = Stroke(width = g * 2.4f),
-            )
-
-            // Descending channels between each numeric row.
-            val rowGaps = listOf(0.445f, 0.605f, 0.765f)
-            val rowLines = listOf(0.425f, 0.585f, 0.745f, 0.905f)
-            rowLines.forEach { f ->
-                val y = size.height * f
-                drawLine(grooveColor, Offset(ringLeft + g, y), Offset(ringRight - g, y), strokeWidth = g, cap = StrokeCap.Round)
-            }
-            // Vertical dividers between key columns, running through the numeric block.
-            val colX = listOf(0.345f, 0.655f)
-            colX.forEach { fx ->
-                val x = size.width * fx
-                drawLine(grooveColor, Offset(x, size.height * 0.425f), Offset(x, size.height * 0.905f), strokeWidth = g, cap = StrokeCap.Round)
-            }
-            // Waist channels that pinch the middle column, echoing the V3i outline.
-            rowGaps.forEach { f ->
-                val y = size.height * f
-                drawLine(grooveColor, Offset(size.width * 0.06f, y), Offset(size.width * 0.345f, y), strokeWidth = g, cap = StrokeCap.Round)
-                drawLine(grooveColor, Offset(size.width * 0.655f, y), Offset(size.width * 0.94f, y), strokeWidth = g, cap = StrokeCap.Round)
-            }
-        }
-
-        // --- D-pad deck row ---
-        Row(
-            modifier = Modifier.fillMaxWidth().weight(1.05f),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            SoftKeyCap(palette, "–", Modifier.size(width = 34.dp, height = 15.dp), haptics, onSoftLeft)
-            GlyphKeyCap(palette, "◍", Modifier.size(width = 26.dp, height = 15.dp), haptics, onGlobe)
-
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                VoiceKeyCap(palette, onVoice, haptics)
-                Spacer(Modifier.height(1.dp))
-                NavRocker(
-                    palette = palette,
-                    onUp = onUp, onDown = onDown, onLeft = onLeft, onRight = onRight,
-                    onCenter = onCenter, haptics = haptics,
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        0f to palette.deckTop,
+                        0.45f to palette.deckMid,
+                        1f to palette.deckLow,
+                    )
                 )
+        ) {
+            // Etch network, rocker and dedicated-key glyphs.
+            Canvas(Modifier.fillMaxSize()) {
+                drawEtch(palette)
+                drawDpad(palette)
+                drawPeripheralGlyphs(palette)
             }
 
-            GlyphKeyCap(palette, "✉", Modifier.size(width = 26.dp, height = 15.dp), haptics, onEnvelope)
-            SoftKeyCap(palette, "–", Modifier.size(width = 34.dp, height = 15.dp), haptics, onSoftRight)
-        }
+            // ---- Legends -------------------------------------------------------
+            // Digit sits low in its cell; the letter group is small and raised.
+            RazrKeypadLayout.rows.forEachIndexed { rowIndex, row ->
+                val cellY = keyRowTop(rowIndex)
+                row.forEachIndexed { colIndex, key ->
+                    val cellX = when (colIndex) {
+                        0 -> 0.065f
+                        1 -> 0.375f
+                        else -> 0.675f
+                    }
+                    val cellW = channelWidth(colIndex)
+                    KeyLegend(
+                        key = key,
+                        tint = palette.legend,
+                        dim = palette.legendDim,
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .offset(x = w * cellX, y = h * cellY)
+                            .size(w * cellW, h * 0.112f),
+                    )
+                }
+            }
 
-        // --- Green send / red power row ---
-        Row(
-            modifier = Modifier.fillMaxWidth().weight(0.5f),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            CallKeyCap(palette, "✆", GreenCall, GreenCallDim, Modifier.size(width = 40.dp, height = 17.dp), haptics, onCall)
-            CallKeyCap(palette, "⏻", RedEnd, RedEndDim, Modifier.size(width = 40.dp, height = 17.dp), haptics, onEnd)
-        }
+            // ---- Hit targets ---------------------------------------------------
+            // Rocker directions sit just inside the ring.
+            hit(w * 0.155f, h * 0.135f, w * 0.19f, h * 0.10f) { haptics.click(); onUp() }
+            hit(w * 0.155f, h * 0.345f, w * 0.19f, h * 0.10f) { haptics.click(); onDown() }
+            hit(w * 0.215f, h * 0.240f, w * 0.10f, h * 0.20f) { haptics.click(); onLeft() }
+            hit(w * 0.595f, h * 0.240f, w * 0.10f, h * 0.20f) { haptics.click(); onRight() }
+            hit(w * 0.405f, h * 0.205f, w * 0.19f, h * 0.16f) { haptics.thud(); onCenter() }
 
-        // --- 12-key numeric block ---
-        Column(
-            modifier = Modifier.fillMaxWidth().weight(2.4f),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            RazrKeypadLayout.rows.forEach { row ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(3.dp)
-                ) {
-                    row.forEach { key ->
-                        NumericKeyCap(
-                            palette = palette,
-                            digit = key.main,
-                            letters = key.letters,
-                            icon = key.icon,
-                            modifier = Modifier.weight(1f).height(26.dp),
-                            onClick = {
-                                haptics.click()
-                                onKey(key.main[0])
-                            },
-                        )
+            // Soft keys, outermost in the top corners.
+            hit(w * 0.060f, h * 0.160f, w * 0.150f, h * 0.090f) { haptics.click(); onSoftLeft() }
+            hit(w * 0.790f, h * 0.160f, w * 0.150f, h * 0.090f) { haptics.click(); onSoftRight() }
+
+            // Voice key, top centre.
+            hit(w * 0.455f, h * 0.030f, w * 0.090f, h * 0.060f) { haptics.click(); onVoice() }
+
+            // Dedicated function keys.
+            hit(w * 0.060f, h * 0.255f, w * 0.150f, h * 0.090f) { haptics.click(); onGlobe() }
+            hit(w * 0.790f, h * 0.255f, w * 0.150f, h * 0.090f) { haptics.click(); onEnvelope() }
+
+            // Green send / red power, low on the flanks.
+            hit(w * 0.060f, h * 0.335f, w * 0.150f, h * 0.090f) { haptics.thud(); onCall() }
+            hit(w * 0.790f, h * 0.335f, w * 0.150f, h * 0.090f) { haptics.thud(); onEnd() }
+
+            // 12 keys.
+            RazrKeypadLayout.rows.forEachIndexed { rowIndex, row ->
+                val y = keyRowTop(rowIndex)
+                row.forEachIndexed { colIndex, key ->
+                    hit(
+                        w * keyChannelStart(colIndex),
+                        h * y,
+                        w * channelWidth(colIndex),
+                        h * 0.112f,
+                    ) {
+                        haptics.click()
+                        onKey(key.main[0])
                     }
                 }
             }
@@ -193,209 +160,334 @@ fun RazrKeypad(
     }
 }
 
+// ---- Numeric block geometry --------------------------------------------------
 
+/** Left edge fraction of the three etch channels. */
+private fun keyChannelStart(col: Int): Float = when (col) {
+    0 -> 0.065f
+    1 -> 0.375f
+    else -> 0.675f
+}
+
+/** Width fraction — the centre channel is deliberately the narrow one. */
+private fun channelWidth(col: Int): Float = when (col) {
+    0 -> 0.260f
+    1 -> 0.250f
+    else -> 0.260f
+}
+
+/** Top edge of each key row. */
+private fun keyRowTop(row: Int): Float = 0.455f + row * 0.1125f
 
 @Composable
-private fun SoftKeyCap(
-    palette: RazrPalette,
-    glyph: String,
-    modifier: Modifier,
-    haptics: HapticEngine,
+private fun Modifier.hitOffset(x: Dp, y: Dp) = this.offset(x = x, y = y)
+
+@Composable
+private fun androidx.compose.foundation.layout.BoxScope.hit(
+    x: Dp,
+    y: Dp,
+    hitW: Dp,
+    hitH: Dp,
     onClick: () -> Unit,
 ) {
     Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(3.dp))
-            .background(palette.wellFace)
-            .border(0.8.dp, palette.wellEdge, RoundedCornerShape(3.dp))
-            .clickable {
-                haptics.click()
-                onClick()
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        Text(glyph, color = palette.grooveGlow, fontSize = 9.sp, fontWeight = FontWeight.Black)
-    }
+        Modifier
+            .align(Alignment.TopStart)
+            .hitOffset(x, y)
+            .size(hitW, hitH)
+            .clickable(onClick = onClick)
+    )
 }
 
-@Composable
-private fun GlyphKeyCap(
-    palette: RazrPalette,
-    glyph: String,
-    modifier: Modifier,
-    haptics: HapticEngine,
-    onClick: () -> Unit,
-) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(3.dp))
-            .background(palette.wellFace.copy(alpha = 0.6f))
-            .clickable {
-                haptics.click()
-                onClick()
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        Text(glyph, color = palette.groove, fontSize = 10.sp, fontWeight = FontWeight.Black)
-    }
-}
+// ---- Legend ------------------------------------------------------------------
 
+/**
+ * One key's legend: a large digit with a small, raised letter group beside it,
+ * mirrored to the other side for the right-hand column.
+ */
 @Composable
-private fun VoiceKeyCap(palette: RazrPalette, onClick: () -> Unit, haptics: HapticEngine) {
-    Box(
-        modifier = Modifier
-            .size(width = 16.dp, height = 7.dp)
-            .clip(RoundedCornerShape(2.dp))
-            .background(palette.wellFace.copy(alpha = 0.6f))
-            .clickable {
-                haptics.click()
-                onClick()
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        Text("♩", color = palette.groove, fontSize = 5.sp)
-    }
-}
-
-@Composable
-private fun CallKeyCap(
-    palette: RazrPalette,
-    glyph: String,
+private fun KeyLegend(
+    key: RazrKey,
     tint: Color,
-    tintDim: Color,
-    modifier: Modifier,
-    haptics: HapticEngine,
-    onClick: () -> Unit,
+    dim: Color,
+    modifier: Modifier = Modifier,
 ) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(3.dp))
-            .background(Brush.verticalGradient(listOf(tintDim.copy(alpha = 0.55f), tintDim)))
-            .border(1.dp, tint.copy(alpha = 0.8f), RoundedCornerShape(3.dp))
-            .clickable {
-                haptics.thud()
-                onClick()
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        Text(glyph, color = tint, fontSize = 11.sp, fontWeight = FontWeight.Black)
-    }
-}
-
-@Composable
-private fun NumericKeyCap(
-    palette: RazrPalette,
-    digit: String,
-    letters: String,
-    icon: String,
-    modifier: Modifier,
-    onClick: () -> Unit,
-) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(3.dp))
-            .background(Brush.verticalGradient(listOf(palette.wellFace, palette.wellFace.copy(alpha = 0.72f))))
-            .border(0.8.dp, palette.wellEdge.copy(alpha = 0.8f), RoundedCornerShape(3.dp))
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(
-                text = digit,
-                color = palette.legend,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-            )
-            if (letters.isNotEmpty()) {
-                Spacer(Modifier.width(1.5.dp))
+    Box(modifier) {
+        val letters = if (key.letters.isNotEmpty()) key.letters else key.sub
+        when {
+            // Letters to the left of the digit (column 3 and "#").
+            key.lettersFirst && letters.isNotEmpty() -> Row(
+                Modifier.align(Alignment.BottomStart).padding(bottom = 1.dp),
+                verticalAlignment = Alignment.Bottom,
+            ) {
                 Text(
                     text = letters,
-                    color = palette.legendDim,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 5.5.sp,
-                    fontWeight = FontWeight.Normal,
+                    color = dim,
+                    fontSize = 7.sp,
+                    maxLines = 1,
+                    modifier = Modifier.padding(bottom = 5.dp),
+                )
+                Text(
+                    text = key.main,
+                    color = tint,
+                    fontSize = 17.sp,
+                    maxLines = 1,
                 )
             }
-            if (icon.isNotEmpty()) {
-                Spacer(Modifier.width(1.dp))
-                Text(text = icon, color = palette.legendDim, fontSize = 5.sp)
+
+            // Letters to the right of the digit (columns 1 and 2).
+            letters.isNotEmpty() -> Row(
+                Modifier.align(Alignment.BottomStart).padding(bottom = 1.dp),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                Text(
+                    text = key.main,
+                    color = tint,
+                    fontSize = 17.sp,
+                    maxLines = 1,
+                )
+                Text(
+                    text = letters,
+                    color = dim,
+                    fontSize = 7.sp,
+                    maxLines = 1,
+                    modifier = Modifier.padding(bottom = 5.dp),
+                )
             }
+
+            else -> Text(
+                text = key.main,
+                color = tint,
+                fontSize = 17.sp,
+                maxLines = 1,
+                modifier = Modifier.align(Alignment.BottomStart).padding(bottom = 1.dp),
+            )
         }
     }
 }
 
-/** Four-way navigation rocker with the moulded centre select button. */
-@Composable
-private fun NavRocker(
-    palette: RazrPalette,
-    onUp: () -> Unit,
-    onDown: () -> Unit,
-    onLeft: () -> Unit,
-    onRight: () -> Unit,
-    onCenter: () -> Unit,
-    haptics: HapticEngine,
-) {
-    val outer = 54.dp
-    Box(
-        modifier = Modifier.size(outer),
-        contentAlignment = Alignment.Center
-    ) {
-        Canvas(Modifier.size(outer)) {
-            val r = size.minDimension / 2f
-            val w = size.minDimension * 0.06f
-            // Outer moulded ring.
-            drawCircle(color = palette.dpadRing, radius = r, style = Stroke(width = w * 1.6f))
-            drawCircle(
-                color = palette.groove.copy(alpha = 0.85f),
-                radius = r,
-                style = Stroke(width = w * 0.9f),
-            )
-            drawCircle(
-                color = palette.grooveGlow.copy(alpha = 0.28f),
-                radius = r - w,
-                style = Stroke(width = w * 2.4f),
-            )
-        }
-        // Direction pads.
-        DirectionPad(Modifier.align(Alignment.TopCenter), "▲", palette) { haptics.click(); onUp() }
-        DirectionPad(Modifier.align(Alignment.BottomCenter), "▼", palette) { haptics.click(); onDown() }
-        DirectionPad(Modifier.align(Alignment.CenterStart), "◀", palette) { haptics.click(); onLeft() }
-        DirectionPad(Modifier.align(Alignment.CenterEnd), "▶", palette) { haptics.click(); onRight() }
+// ---- Etched groove network ---------------------------------------------------
 
-        // Centre select.
-        Box(
-            modifier = Modifier
-                .size(20.dp)
-                .clip(CircleShape)
-                .background(
-                    Brush.radialGradient(
-                        listOf(palette.dpadCenter, palette.dpadFace)
-                    )
-                )
-                .border(1.dp, palette.groove, CircleShape)
-                .clickable {
-                    haptics.thud()
-                    onCenter()
-                }
+private fun DrawScope.drawEtch(palette: RazrPalette) {
+    val w = size.width
+    val h = size.height
+    val g = minOf(w, h) * 0.011f
+
+    fun etch(path: Path, width: Float = g) {
+        drawPath(
+            path, palette.grooveGlow.copy(alpha = 0.26f),
+            style = Stroke(width = width * 2.8f, cap = StrokeCap.Round),
         )
+        drawPath(path, palette.groove, style = Stroke(width = width, cap = StrokeCap.Round))
+    }
+
+    fun line(x1: Float, y1: Float, x2: Float, y2: Float, width: Float = g) {
+        etch(Path().apply { moveTo(x1, y1); lineTo(x2, y2) }, width)
+    }
+
+    // --- Top deck: the "keyhole" arch around the rocker.
+    val deckBottom = h * 0.440f
+    val left = w * 0.065f
+    val right = w * 0.935f
+    val shoulder = h * 0.160f
+    val peak = h * 0.100f
+    val innerL = w * 0.400f
+    val innerR = w * 0.600f
+
+    etch(
+        Path().apply {
+            moveTo(left, deckBottom)
+            lineTo(left, shoulder)
+            quadraticTo(left, shoulder - h * 0.030f, left + w * 0.050f, shoulder - h * 0.030f)
+            lineTo(innerL - w * 0.030f, shoulder - h * 0.030f)
+            quadraticTo(innerL, shoulder - h * 0.070f, innerL + w * 0.030f, peak)
+            lineTo(innerR - w * 0.030f, peak)
+            quadraticTo(innerR, shoulder - h * 0.070f, innerR + w * 0.030f, shoulder - h * 0.030f)
+            lineTo(right - w * 0.050f, shoulder - h * 0.030f)
+            quadraticTo(right, shoulder - h * 0.030f, right, shoulder)
+            lineTo(right, deckBottom)
+        }
+    )
+    line(left, deckBottom, right, deckBottom)
+
+    // Voice-key well at the very top centre.
+    etch(
+        Path().apply {
+            addRoundRect(
+                RoundRect(
+                    left = w * 0.440f, top = h * 0.042f,
+                    right = w * 0.560f, bottom = h * 0.060f,
+                    cornerRadius = CornerRadius(h * 0.009f),
+                )
+            )
+        },
+        width = g * 0.7f,
+    )
+
+    // --- Numeric block: three channels, centre one narrower.
+    val starts = listOf(0.065f, 0.375f, 0.675f)
+    val ends = listOf(0.325f, 0.625f, 0.935f)
+    val rowLines = listOf(0.455f, 0.567f, 0.680f, 0.792f, 0.905f, 0.985f)
+    val blockTop = h * rowLines.first()
+    val blockBottom = h * rowLines.last()
+
+    starts.forEach { line(w * it, blockTop, w * it, blockBottom) }
+    ends.forEach { line(w * it, blockTop, w * it, blockBottom) }
+    rowLines.forEach { f ->
+        val y = h * f
+        starts.indices.forEach { i -> line(w * starts[i], y, w * ends[i], y) }
     }
 }
 
-@Composable
-private fun DirectionPad(
-    modifier: Modifier,
-    glyph: String,
-    palette: RazrPalette,
-    onClick: () -> Unit,
-) {
-    Box(
-        modifier = modifier
-            .size(15.dp)
-            .clip(CircleShape)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(glyph, color = palette.legend, fontSize = 7.sp, fontWeight = FontWeight.Black)
+/** Moulded navigation rocker with its raised silver select button. */
+private fun DrawScope.drawDpad(palette: RazrPalette) {
+    val cx = size.width * 0.5f
+    val cy = size.height * 0.280f
+    val r = size.width * 0.190f
+    val ring = size.width * 0.014f
+
+    drawCircle(
+        color = palette.grooveGlow.copy(alpha = 0.30f),
+        radius = r + ring * 1.5f,
+        style = Stroke(width = ring * 3f),
+    )
+    drawCircle(color = palette.groove, radius = r + ring * 0.5f, style = Stroke(width = ring))
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(palette.wellFace, palette.deckLow),
+            center = Offset(cx - r * 0.25f, cy - r * 0.30f),
+        ),
+        radius = r,
+        center = Offset(cx, cy),
+    )
+    drawCircle(Color.Black.copy(alpha = 0.30f), r, Offset(cx, cy), style = Stroke(width = ring * 0.6f))
+
+    // Four direction pips.
+    val pip = r * 0.16f
+    val at = r * 0.70f
+    triangle(Offset(cx, cy - at), pip, palette.legend, 0f)
+    triangle(Offset(cx, cy + at), pip, palette.legend, 180f)
+    triangle(Offset(cx - at, cy), pip, palette.legend, 270f)
+    triangle(Offset(cx + at, cy), pip, palette.legend, 90f)
+
+    // Raised silver select button — markedly lighter than the deck.
+    val sr = r * 0.38f
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(Color(0xFFF4F6F9), Color(0xFFB4BAC2)),
+            center = Offset(cx - sr * 0.3f, cy - sr * 0.35f),
+        ),
+        radius = sr,
+        center = Offset(cx, cy),
+    )
+    drawCircle(palette.groove, sr, Offset(cx, cy), style = Stroke(width = ring * 0.8f))
+}
+
+private fun DrawScope.triangle(centre: Offset, size: Float, color: Color, rotationDeg: Float) {
+    rotate(rotationDeg, pivot = centre) {
+        val p = Path().apply {
+            moveTo(centre.x, centre.y - size)
+            lineTo(centre.x + size * 0.92f, centre.y + size * 0.72f)
+            lineTo(centre.x - size * 0.92f, centre.y + size * 0.72f)
+            close()
+        }
+        drawPath(p, color)
     }
+}
+
+/** Soft-key brackets, globe, envelope and the green/red call keys. */
+private fun DrawScope.drawPeripheralGlyphs(palette: RazrPalette) {
+    val w = size.width
+    val h = size.height
+    val s = w * 0.050f
+    val leftX = w * 0.135f
+    val rightX = w * 0.865f
+    val softY = h * 0.205f
+    val fnY = h * 0.300f
+    val callY = h * 0.378f
+    val sw = w * 0.011f
+
+    drawBracket(leftX - s * 0.60f, softY, s, false)
+    drawBracket(rightX + s * 0.60f, softY, s, true)
+
+    // Globe.
+    drawCircle(palette.groove, s * 0.50f, Offset(leftX, fnY), style = Stroke(width = sw * 1.15f))
+    drawLine(palette.groove, Offset(leftX, fnY - s * 0.50f), Offset(leftX, fnY + s * 0.50f), sw * 1.05f)
+    drawLine(palette.groove, Offset(leftX - s * 0.50f, fnY), Offset(leftX + s * 0.50f, fnY), sw * 1.05f)
+    drawArc(
+        palette.groove, 90f, 180f, false,
+        topLeft = Offset(leftX - s * 0.25f, fnY - s * 0.50f),
+        size = Size(s * 0.50f, s),
+        style = Stroke(width = sw),
+    )
+
+    // Envelope.
+    val envW = s * 1.00f
+    val envH = s * 0.74f
+    drawRoundRect(
+        palette.groove,
+        Offset(rightX - envW / 2f, fnY - envH / 2f),
+        Size(envW, envH),
+        CornerRadius(s * 0.10f),
+        style = Stroke(width = sw * 1.1f),
+    )
+    drawLine(
+        palette.groove,
+        Offset(rightX - envW / 2f, fnY - envH / 2f),
+        Offset(rightX, fnY + envH * 0.16f),
+        sw * 1.05f,
+    )
+    drawLine(
+        palette.groove,
+        Offset(rightX + envW / 2f, fnY - envH / 2f),
+        Offset(rightX, fnY + envH * 0.16f),
+        sw * 1.05f,
+    )
+
+    // Green send: circular arrow.
+    drawArc(
+        GreenCall, 40f, 285f, false,
+        topLeft = Offset(leftX - s * 0.50f, callY - s * 0.50f),
+        size = Size(s, s),
+        style = Stroke(width = sw * 1.8f, cap = StrokeCap.Round),
+    )
+    drawPath(
+        Path().apply {
+            moveTo(leftX + s * 0.18f, callY - s * 0.60f)
+            lineTo(leftX + s * 0.62f, callY - s * 0.30f)
+            lineTo(leftX + s * 0.10f, callY - s * 0.14f)
+            close()
+        },
+        GreenCall,
+    )
+
+    // Red power.
+    drawArc(
+        RedPower, -60f, 300f, false,
+        topLeft = Offset(rightX - s * 0.48f, callY - s * 0.48f),
+        size = Size(s * 0.96f, s * 0.96f),
+        style = Stroke(width = sw * 1.7f, cap = StrokeCap.Round),
+    )
+    drawLine(
+        RedPower,
+        Offset(rightX, callY - s * 0.60f),
+        Offset(rightX, callY - s * 0.06f),
+        sw * 1.7f,
+        StrokeCap.Round,
+    )
+}
+
+private fun DrawScope.drawBracket(cx: Float, cy: Float, s: Float, mirrored: Boolean) {
+    val dir = if (mirrored) -1f else 1f
+    val p = Path().apply {
+        moveTo(cx - dir * s * 0.55f, cy - s * 0.30f)
+        lineTo(cx + dir * s * 0.10f, cy - s * 0.30f)
+        quadraticTo(cx + dir * s * 0.48f, cy - s * 0.30f, cx + dir * s * 0.48f, cy + s * 0.20f)
+        lineTo(cx + dir * s * 0.48f, cy + s * 0.42f)
+    }
+    drawPath(
+        p,
+        BracketBlue,
+        style = Stroke(width = size.width * 0.010f, cap = StrokeCap.Round),
+    )
 }

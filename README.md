@@ -46,14 +46,26 @@ An enthusiast Android launcher built with **Jetpack Compose**, featuring 5 disti
 ---
 
 ### 07 · MOTOROLA RAZR V3i CLAMSHELL
-- **Working Flip Hinge**: Tap the hinge to open or close the clamshell. Closing it hands the display over to the 96 x 80 external CSTN panel; opening it restores the 2.2" 176 x 220 internal TFT.
-- **Pixel-Perfect Panels**: Both screens render at their true aspect ratio with a drawn pixel lattice, so type reads like a 2005-era LCD rather than modern text.
-- **Laser-Etched Keypad**: Electric-blue groove network traced across the deck exactly as on the handset, plus the moulded four-way rocker, centre-select, green send and red power keys, and the real 12-key layout.
-- **Authentic Status Bar**: Signal bars, GPRS, roam, message, ring-style and battery indicators, per page 46 of the V3i user guide.
-- **4-Digit Unlock Code**: Default `1234` as documented in the manual, entered on the keypad.
-- **Ring Styles**: Loud / Soft / Vibrate / Vibe & Ring / Vibe then Ring / Silent, cycled with the rocker like the original.
-- **Four Quartz Finishes**: Dark, Silver, Blue and Rose — recolours the whole chassis, keypad and display bezel.
-- **Real Telephony**: `InCallService` + `TelecomManager`, live talk-time timer and per-minute tariff billing.
+Rebuilt from photographs of a real handset plus the supplied 128-page user guide.
+
+- **Stock light UI, not a monochrome LCD**: near-white content field, thin navy status strip, pale blue-grey title bar, and medium-blue selection bars carrying bold white text. Typography is bold sans-serif in mixed case — the handset used Univers, which is not redistributable.
+- **Working flip hinge**: tapping it opens or closes the clamshell. Closed, the inner 176x220 panel disappears entirely and only the lower shell remains, carrying the wallpaper, clock, notifications and message previews on the 96x80 outer display.
+- **Pixel-exact panels**: internal 176x220 (4:5), external 96x80, both with a fine RGB subpixel stripe.
+- **Etched keypad, not key tiles**: one continuous brushed sheet with the electric-blue laser etch cut into it, forming three vertical channels — outer two wide, centre one narrow, which is what gives the V3i deck its waisted silhouette. Legends mirror at the centre column: letters right of 2/5/8, left of 3/6/9.
+- **Drawn vector icons**: 21 pictograms rendered on `Canvas`, plus electroluminescent blue chin grille slots.
+- **Authentic status bar**: signal, GPRS, roam, message, ring style and battery indicators, per page 46 of the manual.
+- **Unlock**: hands off to the real Android lock screen (swipe up, enter PIN). The RAZR stays locked only while the device itself is locked.
+- **Four Quartz finishes**: Light, Dark, Blue and Rose — each recolours the chassis, keypad *and* the display chrome, as the handset's five themes did.
+- **Real telephony**: `InCallService` + `TelecomManager`, live talk-time timer.
+
+#### Tariff — two rates, both accrue, summed
+
+| Rate | Unit | Default |
+|---|---|---|
+| Per elapsed second | minor units (paise / cents) | `6` paise/sec, or `0.20` cents/sec |
+| Per completed minute | major units (rupee / dollar) | `1.00` |
+
+`100 paise = 1 rupee` and `100 cents = 1 dollar`. The in-call screen shows both line items and the running total rather than only the total. Configure under **CFG → 07 RAZR V3i TARIFF**.
 
 ---
 

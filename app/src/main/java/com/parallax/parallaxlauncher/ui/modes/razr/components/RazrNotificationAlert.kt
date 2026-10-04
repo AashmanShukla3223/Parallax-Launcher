@@ -7,6 +7,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,102 +15,114 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.parallax.parallaxlauncher.core.notifications.Intercepted
+import com.parallax.parallaxlauncher.ui.modes.razr.RazrIcon
+import com.parallax.parallaxlauncher.ui.modes.razr.RazrIconGlyph
+import com.parallax.parallaxlauncher.ui.modes.razr.RazrIconTints
 import com.parallax.parallaxlauncher.ui.modes.razr.RazrPalette
 
 /**
- * The in-app alert that replaces Android's heads-up while the launcher itself is
- * the foreground app in RAZR mode.
+ * The in-app alert that stands in for Android's heads-up while Mode 7 owns the
+ * foreground.
  *
- * Wording follows the V3i manual: an unread message lights the message indicator
- * and the display announces "New Message". The count is rendered as
- * "1 New Message Received" / "N New Messages Received", with a plain
- * "notification" wording for non-messaging apps so the copy stays truthful.
+ * Styled like the rest of the stock UI — a blue selection bar with white bold
+ * text — rather than a foreign dark widget, so it reads as part of the handset.
+ * Wording follows the manual: an unread message lights the message indicator and
+ * the display announces "New Message". Counts render as
+ * "1 New Message Received" / "N New Messages Received", with plainer wording for
+ * non-messaging apps so the copy stays truthful.
  */
 @Composable
 fun RazrNotificationAlert(
     palette: RazrPalette,
     alert: Intercepted?,
+    onOpenMessaging: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     AnimatedVisibility(
         visible = alert != null,
-        enter = fadeIn() + scaleIn(initialScale = 0.9f),
-        exit = fadeOut() + scaleOut(targetScale = 0.95f),
+        enter = fadeIn() + scaleIn(initialScale = 0.92f),
+        exit = fadeOut() + scaleOut(targetScale = 0.96f),
         modifier = modifier,
     ) {
         val current = alert ?: return@AnimatedVisibility
         val isMessage = current.headline.isMessage
-        val count = current.count
         val headline = when {
-            isMessage && count == 1 -> "1 NEW MESSAGE RECEIVED"
-            isMessage -> "$count NEW MESSAGES RECEIVED"
-            count == 1 -> "1 NEW NOTIFICATION"
-            else -> "$count NEW NOTIFICATIONS"
+            isMessage && current.count == 1 -> "1 NEW MESSAGE RECEIVED"
+            isMessage -> "${current.count} NEW MESSAGES RECEIVED"
+            current.count == 1 -> "1 NEW NOTIFICATION"
+            else -> "${current.count} NEW NOTIFICATIONS"
         }
 
         Column(
-            modifier = Modifier
+            Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(2.dp))
-                .background(palette.bezel)
-                .border(1.dp, palette.groove, RoundedCornerShape(2.dp))
-                .padding(horizontal = 4.dp, vertical = 3.dp)
+                .clip(RoundedCornerShape(3.dp))
+                .background(Brush.horizontalGradient(listOf(palette.selectTop, palette.selectLow)))
+                .clickable(onClick = onOpenMessaging)
+                .padding(horizontal = 5.dp, vertical = 4.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // Envelope glyph for messages, bell glyph otherwise.
-                Text(
-                    text = if (isMessage) "✉" else "◉",
-                    color = palette.grooveGlow,
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Black,
-                )
-                Spacer(Modifier.padding(horizontal = 2.dp))
+                Box(Modifier.size(12.dp), contentAlignment = Alignment.Center) {
+                    RazrIconGlyph(
+                        if (isMessage) RazrIcon.MESSAGES else RazrIcon.HELP,
+                        palette.selectInk,
+                        Modifier.size(11.dp),
+                    )
+                }
+                Spacer(Modifier.width(4.dp))
                 Text(
                     text = headline,
-                    color = palette.grooveGlow,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 6.5.sp,
-                    fontWeight = FontWeight.Black,
+                    color = palette.selectInk,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = (-0.1).sp,
                     maxLines = 2,
                 )
             }
-            Spacer(Modifier.padding(top = 1.dp))
+            Spacer(Modifier.size(1.dp))
             Text(
                 text = current.headline.sender,
-                color = palette.lcdBacklight,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 6.sp,
+                color = palette.selectInk,
+                fontSize = 8.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
             )
             if (current.headline.text.isNotBlank()) {
                 Text(
                     text = current.headline.text,
-                    color = palette.lcdBacklight.copy(alpha = 0.75f),
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 5.5.sp,
+                    color = palette.selectInk.copy(alpha = 0.85f),
+                    fontSize = 7.sp,
                     maxLines = 3,
                 )
             }
+            Spacer(Modifier.size(1.dp))
+            Text(
+                text = "Tap to open",
+                color = palette.selectInk.copy(alpha = 0.75f),
+                fontSize = 7.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.End,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }
 
-/**
- * Variant used while the flip is closed, rendered inside the 96x80 cover display.
- */
+/** Compact variant used on the lower shell while the flip is closed. */
 @Composable
 fun RazrCoverNotificationAlert(
     palette: RazrPalette,
@@ -125,19 +138,18 @@ fun RazrCoverNotificationAlert(
         val current = alert ?: return@AnimatedVisibility
         val isMessage = current.headline.isMessage
         Box(
-            modifier = Modifier
+            Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(2.dp))
-                .background(palette.ink)
-                .padding(horizontal = 3.dp, vertical = 2.dp),
+                .background(Brush.horizontalGradient(listOf(palette.selectTop, palette.selectLow)))
+                .padding(horizontal = 4.dp, vertical = 2.dp),
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = if (isMessage) "${current.count} NEW MSG" else "${current.count} NEW ALERT",
-                color = palette.lcdBacklight,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 6.sp,
-                fontWeight = FontWeight.Black,
+                text = if (isMessage) "${current.count} NEW MESSAGE(S)" else "${current.count} NEW ALERT(S)",
+                color = palette.selectInk,
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
             )
@@ -146,8 +158,8 @@ fun RazrCoverNotificationAlert(
 }
 
 /**
- * Explanation strip shown on the Messages menu entry so the behaviour is
- * discoverable: in-app alert here, standard Android notification elsewhere.
+ * Explanatory strip on the Messages menu so the routing rule is discoverable:
+ * in-app alert here, standard Android notification anywhere else.
  */
 @Composable
 fun RazrRoutingHint(
@@ -155,26 +167,31 @@ fun RazrRoutingHint(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier
+        modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(2.dp))
-            .background(palette.ink.copy(alpha = 0.12f))
-            .padding(horizontal = 3.dp, vertical = 2.dp),
+            .background(palette.fieldAlt)
+            .padding(horizontal = 5.dp, vertical = 3.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(10.dp), contentAlignment = Alignment.Center) {
+                RazrIconGlyph(RazrIcon.MESSAGES, palette.selectLow, Modifier.size(9.dp))
+            }
+            Spacer(Modifier.width(3.dp))
+            Text(
+                "In-app alert here",
+                color = palette.selectLow,
+                fontSize = 6.5.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
         Text(
-            text = "IN-APP ALERT ACTIVE",
-            color = palette.accent,
-            fontFamily = FontFamily.Monospace,
-            fontSize = 5.sp,
-            fontWeight = FontWeight.Bold,
-        )
-        Text(
-            text = "SYSTEM ALERT ELSEWHERE",
+            "System alert elsewhere",
             color = palette.inkDim,
-            fontFamily = FontFamily.Monospace,
-            fontSize = 5.sp,
+            fontSize = 6.5.sp,
             fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.End,
         )
     }
 }

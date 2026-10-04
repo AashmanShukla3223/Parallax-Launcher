@@ -1,7 +1,7 @@
 package com.parallax.parallaxlauncher.core.settings
 
 import android.content.Context
-import com.parallax.parallaxlauncher.ui.modes.razr.RazrSkin
+import com.parallax.parallaxlauncher.ui.modes.razr.RazrFinish
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,11 +25,16 @@ data class Settings(
     val histogram: Boolean = true,
     val grid: Boolean = true,
     // Mode 7 RAZR V3i Call Tariff
+    // Two independent rates that BOTH accrue and are summed:
+    //  * [callTariffRate]     - per whole completed minute, in MAJOR units (rupee / dollar).
+    //  * [callPerSecondRate]  - per elapsed second, in MINOR units (paise / cents).
+    //    100 minor units = 1 major unit.
     val callTariffRate: Float = 1.0f,
+    val callPerSecondRate: Float = 6f,
     val callCurrencyIndex: Int = 0, // 0 = ₹ (Rupees), 1 = p (Paise), 2 = $ (Dollars), 3 = ¢ (Cents)
     val ringtoneUri: String = "", // "" = system default ringtone, "silent" = none
     // Mode 7 RAZR V3i Hardware / Personalize
-    val razrSkin: RazrSkin = RazrSkin.DARK_QUARTZ,
+    val razrSkin: RazrFinish = RazrFinish.DARK_QUARTZ,
     val razrRingStyleIndex: Int = 0, // 0 = Loud, 1 = Soft, 2 = Vibrate, 3 = Vibe & Ring, 4 = Vibe then Ring, 5 = Silent
     val razrUnlockCode: String = "1234", // 4-digit unlock code, per the V3i manual
     val razrVoicemailNumber: String = "*123",
@@ -59,9 +64,10 @@ class SettingsRepository(context: Context) {
             histogram = prefs.getBoolean("histogram", d.histogram),
             grid = prefs.getBoolean("grid", d.grid),
             callTariffRate = prefs.getFloat("callTariffRate", d.callTariffRate),
+            callPerSecondRate = prefs.getFloat("callPerSecondRate", d.callPerSecondRate),
             callCurrencyIndex = prefs.getInt("callCurrencyIndex", d.callCurrencyIndex),
             ringtoneUri = prefs.getString("ringtoneUri", d.ringtoneUri) ?: "",
-            razrSkin = RazrSkin.entries.getOrElse(
+            razrSkin = RazrFinish.entries.getOrElse(
                 prefs.getInt("razrSkin", d.razrSkin.ordinal),
             ) { d.razrSkin },
             razrRingStyleIndex = prefs.getInt("razrRingStyleIndex", d.razrRingStyleIndex)
@@ -92,6 +98,7 @@ class SettingsRepository(context: Context) {
             .putBoolean("histogram", s.histogram)
             .putBoolean("grid", s.grid)
             .putFloat("callTariffRate", s.callTariffRate)
+            .putFloat("callPerSecondRate", s.callPerSecondRate)
             .putInt("callCurrencyIndex", s.callCurrencyIndex)
             .putString("ringtoneUri", s.ringtoneUri)
             .putInt("razrSkin", s.razrSkin.ordinal)

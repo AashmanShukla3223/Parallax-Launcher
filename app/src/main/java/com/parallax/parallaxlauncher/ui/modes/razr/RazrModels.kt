@@ -34,54 +34,54 @@ enum class RazrView {
     ABOUT,
 }
 
-data class RazrMenuItem(val id: Int, val title: String, val glyph: String)
+data class RazrMenuItem(val id: Int, val title: String, val icon: RazrIcon)
 
 /** Main menu, mirroring the V3i manual's menu map. */
 val RAZR_MAIN_MENU = listOf(
-    RazrMenuItem(1, "Recent Calls", "⌸"),
-    RazrMenuItem(2, "Messages", "✉"),
-    RazrMenuItem(3, "Phonebook", "☰"),
-    RazrMenuItem(4, "Web Access", "◍"),
-    RazrMenuItem(5, "Games & Apps", "▦"),
-    RazrMenuItem(6, "Multimedia", "♪"),
-    RazrMenuItem(7, "Tools", "⚙"),
-    RazrMenuItem(8, "Settings", "✿"),
-    RazrMenuItem(9, "Camera", "◉"),
+    RazrMenuItem(1, "Recent Calls", RazrIcon.CALLS),
+    RazrMenuItem(2, "Messages", RazrIcon.MESSAGES),
+    RazrMenuItem(3, "Phonebook", RazrIcon.PHONEBOOK),
+    RazrMenuItem(4, "Web Access", RazrIcon.WEB_ACCESS),
+    RazrMenuItem(5, "Games & Apps", RazrIcon.GAMES),
+    RazrMenuItem(6, "Multimedia", RazrIcon.MULTIMEDIA),
+    RazrMenuItem(7, "Tools", RazrIcon.TOOLS),
+    RazrMenuItem(8, "Settings", RazrIcon.SETTINGS),
+    RazrMenuItem(9, "Camera", RazrIcon.CAMERA),
 )
 
 /** Settings sub-menu, mirroring the V3i manual's settings menu. */
 val RAZR_SETTINGS_MENU = listOf(
-    RazrMenuItem(101, "Personalize", "❐"),
-    RazrMenuItem(102, "Ring Styles", "♪"),
-    RazrMenuItem(103, "Connection", "⇄"),
-    RazrMenuItem(104, "In-Call Setup", "⏱"),
-    RazrMenuItem(105, "Initial Setup", "⏻"),
-    RazrMenuItem(106, "Phone Status", "▤"),
-    RazrMenuItem(107, "Security", "⚿"),
-    RazrMenuItem(108, "Tools", "⚙"),
-    RazrMenuItem(109, "Airplane Mode", "✈"),
+    RazrMenuItem(101, "Personalize", RazrIcon.SETTINGS),
+    RazrMenuItem(102, "Ring Styles", RazrIcon.MULTIMEDIA),
+    RazrMenuItem(103, "Connection", RazrIcon.WEB_ACCESS),
+    RazrMenuItem(104, "In-Call Setup", RazrIcon.CALLS),
+    RazrMenuItem(105, "Initial Setup", RazrIcon.ALARM),
+    RazrMenuItem(106, "Phone Status", RazrIcon.FILES),
+    RazrMenuItem(107, "Security", RazrIcon.SECURITY),
+    RazrMenuItem(108, "Tools", RazrIcon.TOOLS),
+    RazrMenuItem(109, "Airplane Mode", RazrIcon.NETWORK),
 )
 
 val RAZR_TOOLS_MENU = listOf(
-    RazrMenuItem(201, "Calculator", "#"),
-    RazrMenuItem(202, "Datebook", "▤"),
-    RazrMenuItem(203, "Shortcuts", "★"),
-    RazrMenuItem(204, "Voice Records", "◉"),
-    RazrMenuItem(205, "Alarm Clock", "⏰"),
-    RazrMenuItem(206, "Dialing Services", "#"),
-    RazrMenuItem(207, "Quick Dial", "⚡"),
+    RazrMenuItem(201, "Calculator", RazrIcon.CALCULATOR),
+    RazrMenuItem(202, "Datebook", RazrIcon.CALENDAR),
+    RazrMenuItem(203, "Shortcuts", RazrIcon.CHECKLIST),
+    RazrMenuItem(204, "Voice Records", RazrIcon.VOICEMAIL),
+    RazrMenuItem(205, "Alarm Clock", RazrIcon.ALARM),
+    RazrMenuItem(206, "Dialing Services", RazrIcon.CALLS),
+    RazrMenuItem(207, "Quick Dial", RazrIcon.PLAYLIST),
 )
 
 /** Ring style profiles from the manual's Customize chapter. */
-data class RazrRingStyle(val id: Int, val name: String, val glyph: String)
+data class RazrRingStyle(val id: Int, val name: String)
 
 val RAZR_RING_STYLES = listOf(
-    RazrRingStyle(0, "Loud", "♪"),
-    RazrRingStyle(1, "Soft", "♪"),
-    RazrRingStyle(2, "Vibrate", "≈"),
-    RazrRingStyle(3, "Vibe & Ring", "≋"),
-    RazrRingStyle(4, "Vibe then Ring", "◠"),
-    RazrRingStyle(5, "Silent", "⌀"),
+    RazrRingStyle(0, "Loud"),
+    RazrRingStyle(1, "Soft"),
+    RazrRingStyle(2, "Vibrate"),
+    RazrRingStyle(3, "Vibe & Ring"),
+    RazrRingStyle(4, "Vibe then Ring"),
+    RazrRingStyle(5, "Silent"),
 )
 
 /** Bundled wallpapers from the reference folder. */
@@ -97,13 +97,42 @@ object RazrWallpapers {
 }
 
 /** The 12-key layout exactly as etched on the V3i keypad. */
-data class RazrKey(val main: String, val letters: String, val icon: String = "")
+data class RazrKey(
+    val main: String,
+    val letters: String,
+    /** Small secondary legend (punctuation, `+`, music note). */
+    val sub: String = "",
+    /** True when the letter group is etched to the *left* of the digit. */
+    val lettersFirst: Boolean = false,
+)
 
 object RazrKeypadLayout {
+    /**
+     * Rows 1-3 mirror at the centre column, exactly as on the handset: the
+     * letter group sits to the right of 2, 5 and 8 but to the left of 3, 6
+     * and 9. The bottom row carries `0 +` in a single well, with `*` left and
+     * the music-note key right.
+     */
     val rows: List<List<RazrKey>> = listOf(
-        listOf(RazrKey("1", "", "@"), RazrKey("2", "ABC"), RazrKey("3", "DEF")),
-        listOf(RazrKey("4", "GHI"), RazrKey("5", "JKL"), RazrKey("6", "MNO")),
-        listOf(RazrKey("7", "PQRS"), RazrKey("8", "TUV"), RazrKey("9", "WXYZ")),
-        listOf(RazrKey("*", ""), RazrKey("0", ""), RazrKey("#", "", "♪")),
+        listOf(
+            RazrKey("1", "", ".,@"),
+            RazrKey("2", "ABC"),
+            RazrKey("3", "DEF", lettersFirst = true),
+        ),
+        listOf(
+            RazrKey("4", "GHI"),
+            RazrKey("5", "JKL"),
+            RazrKey("6", "MNO", lettersFirst = true),
+        ),
+        listOf(
+            RazrKey("7", "PQRS"),
+            RazrKey("8", "TUV"),
+            RazrKey("9", "WXYZ", lettersFirst = true),
+        ),
+        listOf(
+            RazrKey("*", "", "␣"),
+            RazrKey("0", "", "+"),
+            RazrKey("#", "", "♫", lettersFirst = true),
+        ),
     )
 }

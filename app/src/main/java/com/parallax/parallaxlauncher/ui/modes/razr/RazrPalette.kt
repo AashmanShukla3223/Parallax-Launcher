@@ -1,188 +1,281 @@
 package com.parallax.parallaxlauncher.ui.modes.razr
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 
 /**
  * The four RAZR V3i Quartz finishes documented in the reference material.
- * The default finish is Silver Quartz (dark anodised metal + electric-blue
- * laser-etched grooves), matching the shipped keypad photograph.
+ *
+ * Each finish carries two independent palettes:
+ *  * [RazrHardware] — chassis metal, keypad deck, laser etch, key legends.
+ *  * [RazrSkin] — the display chrome. The V3i shipped five themes and the title
+ *    bar, content field and selection colour all changed with them.
  */
-enum class RazrSkin(val label: String, val short: String) {
+enum class RazrFinish(val label: String, val short: String) {
+    LIGHT_QUARTZ("Light Quartz", "LIGHT"),
     DARK_QUARTZ("Dark Quartz", "DARK"),
-    SILVER_QUARTZ("Silver Quartz", "SILVER"),
     BLUE_QUARTZ("Blue Quartz", "BLUE"),
     ROSE_QUARTZ("Rose Quartz", "ROSE"),
 }
 
-/** Every colour the chassis, keypad and status indicators need for one finish. */
-data class RazrPalette(
-    // Chassis (upper shell, chin, hinge barrel)
+/** Hardware colours: chassis, keypad deck, laser etch and key legends. */
+data class RazrHardware(
     val chassisTop: Color,
     val chassisMid: Color,
     val chassisLow: Color,
     val chassisEdge: Color,
     val chassisHighlight: Color,
-    // Inner display bezel + surround
     val bezel: Color,
     val bezelEdge: Color,
-    // Keypad deck
     val deckTop: Color,
     val deckMid: Color,
     val deckLow: Color,
     val deckEdge: Color,
-    // Keypad wells
     val wellFace: Color,
-    val wellEdge: Color,
-    // Laser-etched groove (constant electric blue on every V3i finish)
     val groove: Color,
     val grooveGlow: Color,
-    // Key legends
     val legend: Color,
     val legendDim: Color,
-    // D-pad
-    val dpadFace: Color,
     val dpadRing: Color,
     val dpadCenter: Color,
-    // Screen pixels
-    val lcdBacklight: Color,
-    val lcdOff: Color,
-    val lcdGrid: Color,
-    // Status bar / UI ink
+    val grilleGlow: Color,
+)
+
+/**
+ * Display chrome.
+ *
+ * These values were sampled from photographs of a real handset rather than
+ * invented: the stock screen is a *light* UI — a navy status strip, a pale
+ * blue-grey title bar, a near-white content field, and a medium-blue selection
+ * bar carrying bold white text.
+ */
+data class RazrSkin(
+    val statusTop: Color,
+    val statusLow: Color,
+    val statusInk: Color,
+
+    val titleTop: Color,
+    val titleLow: Color,
+    val titleInk: Color,
+
+    val field: Color,
+    val fieldAlt: Color,
     val ink: Color,
     val inkDim: Color,
-    val accent: Color,
+
+    val selectTop: Color,
+    val selectLow: Color,
+    val selectInk: Color,
+
+    val softTop: Color,
+    val softLow: Color,
+    val softInk: Color,
+
+    /** Rounded badge behind the selected icon-grid cell. */
+    val badgeFill: Color,
+    /** Label colour inside that badge — the stock handsets used yellow. */
+    val badgeInk: Color,
+
     val alert: Color,
+)
+
+/** Combined palette used throughout the RAZR UI. */
+data class RazrPalette(
+    val hw: RazrHardware,
+    val ui: RazrSkin,
 ) {
+    val chassisTop get() = hw.chassisTop
+    val chassisMid get() = hw.chassisMid
+    val chassisLow get() = hw.chassisLow
+    val chassisEdge get() = hw.chassisEdge
+    val chassisHighlight get() = hw.chassisHighlight
+    val bezel get() = hw.bezel
+    val bezelEdge get() = hw.bezelEdge
+    val deckTop get() = hw.deckTop
+    val deckMid get() = hw.deckMid
+    val deckLow get() = hw.deckLow
+    val deckEdge get() = hw.deckEdge
+    val wellFace get() = hw.wellFace
+    val groove get() = hw.groove
+    val grooveGlow get() = hw.grooveGlow
+    val legend get() = hw.legend
+    val legendDim get() = hw.legendDim
+    val dpadRing get() = hw.dpadRing
+    val dpadCenter get() = hw.dpadCenter
+    val grilleGlow get() = hw.grilleGlow
+
+    val statusTop get() = ui.statusTop
+    val statusLow get() = ui.statusLow
+    val statusInk get() = ui.statusInk
+    val titleTop get() = ui.titleTop
+    val titleLow get() = ui.titleLow
+    val titleInk get() = ui.titleInk
+    val field get() = ui.field
+    val fieldAlt get() = ui.fieldAlt
+    val ink get() = ui.ink
+    val inkDim get() = ui.inkDim
+    val selectTop get() = ui.selectTop
+    val selectLow get() = ui.selectLow
+    val selectInk get() = ui.selectInk
+    val softTop get() = ui.softTop
+    val softLow get() = ui.softLow
+    val softInk get() = ui.softInk
+    val badgeFill get() = ui.badgeFill
+    val badgeInk get() = ui.badgeInk
+    val alert get() = ui.alert
+
+    /**
+     * The stock handsets used Univers, a humanist grotesque. SansSerif is the
+     * closest thing available without bundling a licensed face, and the single
+     * most important change from the earlier monospace build: bold, mixed case,
+     * tight tracking.
+     */
+    val font: FontFamily = FontFamily.SansSerif
+
     companion object {
-        /** Electric blue laser etch — identical on all four Quartz finishes. */
-        private val Groove = Color(0xFF2B4CFF)
-        private val GrooveGlow = Color(0xFF7FA4FF)
+        /** Electric blue laser etch, identical on every Quartz finish. */
+        private val Groove = Color(0xFF1E4AE0)
+        private val GrooveGlow = Color(0xFF7FA0FF)
 
-        val DarkQuartz = RazrPalette(
-            chassisTop = Color(0xFF5A5F66),
-            chassisMid = Color(0xFF3A3E45),
-            chassisLow = Color(0xFF1E2126),
-            chassisEdge = Color(0xFF14161A),
-            chassisHighlight = Color(0xFF8E959E),
-            bezel = Color(0xFF101216),
-            bezelEdge = Color(0xFF07080A),
-            deckTop = Color(0xFF4E535A),
-            deckMid = Color(0xFF2E3238),
-            deckLow = Color(0xFF17191D),
-            deckEdge = Color(0xFF101215),
-            wellFace = Color(0xFF22262C),
-            wellEdge = Color(0xFF0C0E11),
-            groove = Groove,
-            grooveGlow = GrooveGlow,
-            legend = Color(0xFFF2F5FA),
-            legendDim = Color(0xFFA9B3C2),
-            dpadFace = Color(0xFF3A4049),
-            dpadRing = Color(0xFF4C545F),
-            dpadCenter = Color(0xFFB9C0C9),
-            lcdBacklight = Color(0xFFBFD8C8),
-            lcdOff = Color(0xFF10160F),
-            lcdGrid = Color(0x14000000),
-            ink = Color(0xFF0E1A10),
-            inkDim = Color(0xFF3C5544),
-            accent = Color(0xFF1E7B3C),
-            alert = Color(0xFFB3261E),
-        )
+        // ---- Hardware ------------------------------------------------------------
 
-        val SilverQuartz = RazrPalette(
-            chassisTop = Color(0xFFD7DBE1),
-            chassisMid = Color(0xFF9DA4AE),
-            chassisLow = Color(0xFF5F666F),
-            chassisEdge = Color(0xFF3A4048),
-            chassisHighlight = Color(0xFFF2F5F9),
+        private val SilverHw = RazrHardware(
+            chassisTop = Color(0xFFE2E6EB),
+            chassisMid = Color(0xFFB4BAC3),
+            chassisLow = Color(0xFF7C838D),
+            chassisEdge = Color(0xFF4A5058),
+            chassisHighlight = Color(0xFFF6F8FA),
             bezel = Color(0xFF1B1E23),
             bezelEdge = Color(0xFF0A0B0D),
-            deckTop = Color(0xFFB9C0C9),
-            deckMid = Color(0xFF868E99),
-            deckLow = Color(0xFF4E555E),
-            deckEdge = Color(0xFF333940),
-            wellFace = Color(0xFF6A727C),
-            wellEdge = Color(0xFF2A2F35),
+            deckTop = Color(0xFFD2D7DD),
+            deckMid = Color(0xFF9BA2AC),
+            deckLow = Color(0xFF6A717A),
+            deckEdge = Color(0xFF3B4048),
+            wellFace = Color(0xFFC3C9D1),
             groove = Groove,
             grooveGlow = GrooveGlow,
-            legend = Color(0xFF11151A),
-            legendDim = Color(0xFF39424E),
-            dpadFace = Color(0xFF8C949F),
-            dpadRing = Color(0xFF6D757F),
-            dpadCenter = Color(0xFFF0F3F7),
-            lcdBacklight = Color(0xFFCFE0CE),
-            lcdOff = Color(0xFF121810),
-            lcdGrid = Color(0x12000000),
-            ink = Color(0xFF12200F),
-            inkDim = Color(0xFF415A44),
-            accent = Color(0xFF1E7B3C),
-            alert = Color(0xFFB3261E),
+            legend = Color(0xFFFAFBFD),
+            legendDim = Color(0xFFCDD4DE),
+            dpadRing = Color(0xFF161A20),
+            dpadCenter = Color(0xFF1E2733),
+            grilleGlow = Color(0xFF2A57E8),
         )
 
-        val BlueQuartz = RazrPalette(
-            chassisTop = Color(0xFF4E7FC4),
-            chassisMid = Color(0xFF2E5590),
-            chassisLow = Color(0xFF17304F),
-            chassisEdge = Color(0xFF0D1D31),
-            chassisHighlight = Color(0xFF8FB6E8),
-            bezel = Color(0xFF0C1520),
-            bezelEdge = Color(0xFF05080D),
-            deckTop = Color(0xFF3F6BAC),
-            deckMid = Color(0xFF254A7C),
-            deckLow = Color(0xFF122741),
-            deckEdge = Color(0xFF0A1727),
-            wellFace = Color(0xFF1B3355),
-            wellEdge = Color(0xFF06101D),
-            groove = Color(0xFF63E0FF),
-            grooveGlow = Color(0xFFB4F0FF),
-            legend = Color(0xFFF0F7FF),
-            legendDim = Color(0xFFA8C4E0),
-            dpadFace = Color(0xFF2C5484),
-            dpadRing = Color(0xFF3E6EA6),
-            dpadCenter = Color(0xFFCFE2F7),
-            lcdBacklight = Color(0xFFC6DCEF),
-            lcdOff = Color(0xFF0C141C),
-            lcdGrid = Color(0x14000000),
-            ink = Color(0xFF0C1A28),
-            inkDim = Color(0xFF37536E),
-            accent = Color(0xFF2B6CB0),
-            alert = Color(0xFFC62828),
+        private val DarkHw = SilverHw.copy(
+            chassisTop = Color(0xFF61666E),
+            chassisMid = Color(0xFF3C4148),
+            chassisLow = Color(0xFF212429),
+            chassisEdge = Color(0xFF131519),
+            chassisHighlight = Color(0xFF949BA4),
+            bezel = Color(0xFF0E1013),
+            deckTop = Color(0xFF585D65),
+            deckMid = Color(0xFF383C42),
+            deckLow = Color(0xFF1F2226),
+            deckEdge = Color(0xFF111316),
+            wellFace = Color(0xFF2B2F35),
+            dpadRing = Color(0xFF0C0E11),
+            dpadCenter = Color(0xFF141A22),
         )
 
-        val RoseQuartz = RazrPalette(
-            chassisTop = Color(0xFFD9A9B6),
-            chassisMid = Color(0xFFB87E8F),
-            chassisLow = Color(0xFF7E5161),
-            chassisEdge = Color(0xFF4E303B),
-            chassisHighlight = Color(0xFFF3D5DD),
-            bezel = Color(0xFF1B1216),
-            bezelEdge = Color(0xFF090607),
-            deckTop = Color(0xFFBE8797),
-            deckMid = Color(0xFF96606F),
-            deckLow = Color(0xFF5E3946),
-            deckEdge = Color(0xFF3A222B),
-            wellFace = Color(0xFF7C4E5C),
-            wellEdge = Color(0xFF2E1B23),
-            groove = Color(0xFF7C4CFF),
-            grooveGlow = Color(0xFFC0A8FF),
-            legend = Color(0xFFFFF4F7),
-            legendDim = Color(0xFFE0BFC9),
-            dpadFace = Color(0xFF9A6273),
-            dpadRing = Color(0xFFB07F90),
-            dpadCenter = Color(0xFFF6DEE5),
-            lcdBacklight = Color(0xFFEDD3D8),
-            lcdOff = Color(0xFF180F12),
-            lcdGrid = Color(0x14000000),
-            ink = Color(0xFF221016),
-            inkDim = Color(0xFF6B4753),
-            accent = Color(0xFFA03A55),
-            alert = Color(0xFFB3261E),
+        private val BlueHw = SilverHw.copy(
+            chassisTop = Color(0xFF5E93D6),
+            chassisMid = Color(0xFF3567A8),
+            chassisLow = Color(0xFF1B3A62),
+            chassisEdge = Color(0xFF10233C),
+            chassisHighlight = Color(0xFFA3C6F0),
+            deckTop = Color(0xFF4E82C4),
+            deckMid = Color(0xFF2E5A94),
+            deckLow = Color(0xFF173257),
+            deckEdge = Color(0xFF0D2038),
+            wellFace = Color(0xFF2A5580),
+            legendDim = Color(0xFFB6CDE8),
         )
 
-        fun of(skin: RazrSkin): RazrPalette = when (skin) {
-            RazrSkin.DARK_QUARTZ -> DarkQuartz
-            RazrSkin.SILVER_QUARTZ -> SilverQuartz
-            RazrSkin.BLUE_QUARTZ -> BlueQuartz
-            RazrSkin.ROSE_QUARTZ -> RoseQuartz
+        private val RoseHw = SilverHw.copy(
+            chassisTop = Color(0xFFE0B2BF),
+            chassisMid = Color(0xFFC08B9A),
+            chassisLow = Color(0xFF875967),
+            chassisEdge = Color(0xFF553440),
+            chassisHighlight = Color(0xFFF6DDE3),
+            deckTop = Color(0xFFC996A5),
+            deckMid = Color(0xFFA06B7A),
+            deckLow = Color(0xFF663F4C),
+            deckEdge = Color(0xFF40252F),
+            wellFace = Color(0xFF8A5764),
+            legendDim = Color(0xFFE8C6CE),
+        )
+
+        // ---- Display skins -------------------------------------------------------
+
+        /** The stock light theme: pale field, navy chrome, blue selection. */
+        private val LightSkin = RazrSkin(
+            statusTop = Color(0xFF22386E),
+            statusLow = Color(0xFF101E45),
+            statusInk = Color(0xFFFFFFFF),
+            titleTop = Color(0xFFDCE3F0),
+            titleLow = Color(0xFFB7C3D9),
+            titleInk = Color(0xFF12161F),
+            field = Color(0xFFE9ECF2),
+            fieldAlt = Color(0xFFD7DBE4),
+            ink = Color(0xFF15204A),
+            inkDim = Color(0xFF6A7290),
+            selectTop = Color(0xFF3A82D6),
+            selectLow = Color(0xFF1E5BAC),
+            selectInk = Color(0xFFFFFFFF),
+            softTop = Color(0xFFE0E6F0),
+            softLow = Color(0xFFC0C9DC),
+            softInk = Color(0xFF12161F),
+            badgeFill = Color(0xFF1B2A5E),
+            badgeInk = Color(0xFFF7C948),
+            alert = Color(0xFFC0392B),
+        )
+
+        private val DarkSkin = LightSkin.copy(
+            statusTop = Color(0xFF2A3038),
+            statusLow = Color(0xFF14181D),
+            titleTop = Color(0xFF4A525C),
+            titleLow = Color(0xFF2E343C),
+            titleInk = Color(0xFFF2F5F9),
+            field = Color(0xFF1B1F25),
+            fieldAlt = Color(0xFF262B33),
+            ink = Color(0xFFE8EDF4),
+            inkDim = Color(0xFF8B95A4),
+            selectTop = Color(0xFF2F6CC4),
+            selectLow = Color(0xFF16437E),
+            softTop = Color(0xFF39404A),
+            softLow = Color(0xFF22272E),
+            softInk = Color(0xFFF2F5F9),
+            badgeFill = Color(0xFF39465A),
+            alert = Color(0xFFFF6B5A),
+        )
+
+        private val BlueSkin = LightSkin.copy(
+            statusTop = Color(0xFF14406F),
+            statusLow = Color(0xFF082A4E),
+            titleTop = Color(0xFFCFE1F2),
+            titleLow = Color(0xFFA3C4E0),
+            ink = Color(0xFF0E2A4A),
+            selectTop = Color(0xFF2E8AD0),
+            selectLow = Color(0xFF12558F),
+            badgeFill = Color(0xFF0F3557),
+        )
+
+        private val RoseSkin = LightSkin.copy(
+            statusTop = Color(0xFF6B2A44),
+            statusLow = Color(0xFF3D1324),
+            titleTop = Color(0xFFF3DDE3),
+            titleLow = Color(0xFFDDB4C0),
+            ink = Color(0xFF4A1F2E),
+            selectTop = Color(0xFFD0567C),
+            selectLow = Color(0xFF9C3355),
+            badgeFill = Color(0xFF4A1F2E),
+        )
+
+        fun of(finish: RazrFinish): RazrPalette = when (finish) {
+            RazrFinish.LIGHT_QUARTZ -> RazrPalette(SilverHw, LightSkin)
+            RazrFinish.DARK_QUARTZ -> RazrPalette(DarkHw, DarkSkin)
+            RazrFinish.BLUE_QUARTZ -> RazrPalette(BlueHw, BlueSkin)
+            RazrFinish.ROSE_QUARTZ -> RazrPalette(RoseHw, RoseSkin)
         }
     }
 }
