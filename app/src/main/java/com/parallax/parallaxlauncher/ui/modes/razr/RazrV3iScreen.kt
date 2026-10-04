@@ -3,6 +3,8 @@ package com.parallax.parallaxlauncher.ui.modes.razr
 import android.Manifest
 import android.app.KeyguardManager
 import android.app.role.RoleManager
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -13,6 +15,7 @@ import android.os.Bundle
 import android.provider.AlarmClock
 import android.provider.CallLog
 import android.provider.ContactsContract
+import android.provider.ContactsContract.CommonDataKinds.Phone
 import android.provider.MediaStore
 import android.provider.Settings as AndroidSettings
 import android.telecom.Call
@@ -39,6 +42,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import android.telephony.SubscriptionManager
+import android.telephony.TelephonyManager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -88,6 +93,7 @@ import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrInCallScreen
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrIncomingCallScreen
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrInboxList
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrKeypad
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrActionSheet
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrListScreen
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrMessageMenu
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrNotificationAlert
@@ -143,6 +149,13 @@ fun RazrV3iScreen(
     val unread by NotificationFeed.unread.collectAsState()
     val messages = notificationItems.filter { it.isMessage }
 
+    // Contacts for the in-panel Phonebook. Loaded lazily the first time the
+    // view is opened rather than at composition, so the app does not sit on a
+    // content provider query on every recomposition of the whole chassis.
+    var contacts by remember { mutableStateOf<List<RazrContact>>(emptyList()) }
+    var contactsRequested by rememberSaveable { mutableStateOf(false) }
+    var contactActionIndex by rememberSaveable { mutableIntStateOf(0) }
+
     val palette = remember(settings.razrSkin) { RazrPalette.of(settings.razrSkin) }
     val carrierName = remember { VintageCarrierResolver.resolve(context) }
     val tonePlayer = remember { TonePlayer() }
@@ -182,6 +195,32 @@ fun RazrV3iScreen(
     var dialBuffer by rememberSaveable { mutableStateOf("") }
     var lastDialed by rememberSaveable { mutableStateOf("") }
     var toast by rememberSaveable { mutableStateOf<String?>(null) }
+
+    val contactsPermLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        contactsRequested = true
+        if (granted) {
+            contacts = readPhonebook(context)
+        } else {
+            toast = "CONTACTS PERMISSION DENIED"
+        }
+    }
+
+    fun loadPhonebook() {
+        if (!hasContactsPermission(context)) {
+            // Flip the flag before launching. If the sheet is dismissed without
+            // ever calling back -- which is what happens once the user has
+            // ticked "don't ask again" -- the list must stop saying LOADING and
+            // say it needs permission instead.
+            contactsRequested = true
+            contactsPermLauncher.launch(Manifest.permission.READ_CONTACTS)
+            return
+        }
+        contacts = readPhonebook(context)
+        contactsRequested = true
+    }
+
     var callSeconds by rememberSaveable { mutableIntStateOf(0) }
     var callVolume by rememberSaveable { mutableIntStateOf(7) }
     var missedCalls by rememberSaveable { mutableIntStateOf(0) }
@@ -576,6 +615,43 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         }
     }
 
+    /**
+     * Runs the highlighted phonebook action.
+     *
+     * Call puts the number on the dial line rather than placing it immediately:
+     * the stock handset always shows what it is about to dial, and it keeps SEND
+     * as the deliberate second step.
+     *
+     * Message hands off to the system composer with the recipient pre-filled,
+     * which needs no SEND_SMS grant. Copy writes the clipboard, which since API
+     * 28 needs no permission for the focused app.
+     */
+    fun runContactAction() {
+        val c = contacts.getOrNull(listIndex) ?: return
+        when (CONTACT_ACTIONS[contactActionIndex.coerceIn(CONTACT_ACTIONS.indices)]) {
+            ContactAction.CALL -> {
+                dialBuffer = c.number
+                view = RazrView.DIALING
+                tonePlayer.playRazrChirp()
+            }
+            ContactAction.MESSAGE -> {
+                tonePlayer.playRazrChirp()
+                context.openSmsComposer(c.number)
+                goHome()
+            }
+            ContactAction.COPY -> {
+                context.copyToClipboard(c.number)
+                toast = "COPIED: ${c.number}"
+                tonePlayer.playRazrChirp()
+                view = RazrView.PHONEBOOK
+            }
+            ContactAction.BACK -> {
+                view = RazrView.PHONEBOOK
+                tonePlayer.playRazrChirp()
+            }
+        }
+    }
+
     // ---- Rocker behaviour ------------------------------------------------------
     /** Volume-rocker shortcut from the manual: rotate through ring styles. */
     fun cycleRingStyle(delta: Int) {
@@ -599,6 +675,9 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
             view == RazrView.GAMES -> if (listIndex < RAZR_GAMES.lastIndex) { listIndex += 1; tonePlayer.playRazrChirp() }
             view == RazrView.APPS_LIST -> if (listIndex > 0) { listIndex -= 1; tonePlayer.playRazrChirp() }
             view == RazrView.INBOX -> if (listIndex > 0) { listIndex -= 1; tonePlayer.playRazrChirp() }
+            view == RazrView.PHONEBOOK -> if (listIndex > 0) { listIndex -= 1; tonePlayer.playRazrChirp() }
+            view == RazrView.PHONEBOOK_ACTIONS ->
+                if (contactActionIndex > 0) { contactActionIndex -= 1; tonePlayer.playRazrChirp() }
             view == RazrView.IN_CALL -> { callVolume = (callVolume + 1).coerceAtMost(10); tonePlayer.playRazrChirp() }
         }
     }
@@ -607,7 +686,15 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         if (view == RazrView.GAME) { currentGame?.onNav(Nav.DOWN); return }
         when {
             locked -> Unit
-            view == RazrView.STANDBY -> openCalls()
+            // The real handset puts the Phonebook on the down key from
+            // standby; it is not a shortcut for the call log.
+            view == RazrView.STANDBY -> {
+                view = RazrView.PHONEBOOK
+                listIndex = 0
+                contactsRequested = false
+                loadPhonebook()
+                tonePlayer.playRazrChirp()
+            }
             view == RazrView.MAIN_MENU ->
                 if (menuIndex <= RAZR_MAIN_MENU.size - 4) { menuIndex += 3; tonePlayer.playRazrChirp() }
             view == RazrView.SETTINGS ->
@@ -621,6 +708,10 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
                 if (listIndex < apps.lastIndex) { listIndex += 1; tonePlayer.playRazrChirp() }
             view == RazrView.INBOX ->
                 if (listIndex < messages.lastIndex) { listIndex += 1; tonePlayer.playRazrChirp() }
+            view == RazrView.PHONEBOOK ->
+                if (listIndex < contacts.lastIndex) { listIndex += 1; tonePlayer.playRazrChirp() }
+            view == RazrView.PHONEBOOK_ACTIONS ->
+                if (contactActionIndex < CONTACT_ACTIONS.lastIndex) { contactActionIndex += 1; tonePlayer.playRazrChirp() }
             view == RazrView.IN_CALL -> { callVolume = (callVolume - 1).coerceAtLeast(1); tonePlayer.playRazrChirp() }
         }
     }
@@ -653,6 +744,16 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         when (view) {
             RazrView.STANDBY -> { view = RazrView.MAIN_MENU; menuIndex = 0; tonePlayer.playRazrChirp() }
             RazrView.DIALING -> startCall(dialBuffer, permLauncher, roleLauncher)
+        // The stock phonebook does not call straight away; SELECT opens the
+        // action sheet, which is the only way Call / Message / Copy are
+        // reachable on a three-soft-key panel.
+        RazrView.PHONEBOOK ->
+            if (contacts.isNotEmpty()) {
+                contactActionIndex = 0
+                view = RazrView.PHONEBOOK_ACTIONS
+                tonePlayer.playRazrChirp()
+            }
+        RazrView.PHONEBOOK_ACTIONS -> runContactAction()
             RazrView.MAIN_MENU -> selectMenuItem(RAZR_MAIN_MENU[menuIndex.coerceIn(RAZR_MAIN_MENU.indices)])
             RazrView.SETTINGS -> selectSettingsItem(RAZR_SETTINGS_MENU[subIndex.coerceIn(RAZR_SETTINGS_MENU.indices)])
             RazrView.TOOLS -> selectToolsItem(RAZR_TOOLS_MENU[subIndex.coerceIn(RAZR_TOOLS_MENU.indices)])
@@ -720,6 +821,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         view == RazrView.INCOMING -> "DECLINE"
         view == RazrView.STANDBY -> "INBOX"
         view == RazrView.DIALING -> "CLEAR"
+        view == RazrView.PHONEBOOK_ACTIONS -> "SELECT"
         else -> "BACK"
     }
     val softCenter = when {
@@ -738,6 +840,9 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         view == RazrView.STANDBY -> "CLOSE FLIP"
         else -> "BACK"
     }
+
+    // The operator a 2G handset would show, not the modern consumer brand.
+    val operatorName = remember { simOperator2G(context) }
 
     val wallpaper = RazrWallpapers.all[
         settings.razrWallpaperIndex.coerceIn(RazrWallpapers.all.indices)
@@ -796,6 +901,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
                         RazrStatusStrip(palette) {
                             RazrStatusGlyphs(
                                 palette = palette,
+                                operatorName = operatorName,
                                 signalBars = 3,
                                 batteryPercent = telemetryState.batteryPct.coerceAtLeast(0),
                                 charging = telemetryState.charging,
@@ -816,6 +922,11 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
                                     view = view,
                                     palette = palette,
                                     settings = settings,
+                                    contacts = contacts,
+                                    contactsRequested = contactsRequested,
+                                    contactActionIndex = contactActionIndex,
+                                    contactsBlocked = !hasContactsPermission(context),
+                                    operatorName = operatorName,
                                     wallpaperRes = wallpaper,
                                     apps = apps,
                                     messages = messages,
@@ -984,6 +1095,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
 
                             else -> RazrCoverPanel(
                                 palette = palette,
+                                operatorName = operatorName,
                                 wallpaperRes = wallpaper,
                                 time = clockText,
                                 amPm = amPm,
@@ -1013,6 +1125,11 @@ private fun ActiveView(
     view: RazrView,
     palette: RazrPalette,
     settings: Settings,
+    contacts: List<RazrContact>,
+    contactsRequested: Boolean,
+    contactActionIndex: Int,
+    contactsBlocked: Boolean,
+    operatorName: String,
     wallpaperRes: Int,
     apps: List<AppInfo>,
     messages: List<Headline>,
@@ -1047,6 +1164,7 @@ private fun ActiveView(
     when (view) {
         RazrView.STANDBY -> RazrHomeScreen(
             palette = palette,
+            operatorName = operatorName,
             wallpaperRes = wallpaperRes,
             time = clockText,
             amPm = amPm,
@@ -1091,9 +1209,37 @@ private fun ActiveView(
 
         RazrView.INBOX -> RazrInboxList(palette, messages, listIndex)
 
+        // Reached only with a valid index: both the entry point and every
+        // action guard on it, and BACK returns to the list. Rendering must not
+        // assign state, so there is no recovery branch here.
+        RazrView.PHONEBOOK_ACTIONS -> contacts.getOrNull(listIndex)?.let { c ->
+            RazrActionSheet(
+                palette = palette,
+                heading = c.name,
+                options = CONTACT_ACTIONS,
+                selectedIndex = contactActionIndex,
+                label = { a: ContactAction -> a.label },
+            )
+        }
+
+        RazrView.PHONEBOOK -> RazrListScreen(
+            palette = palette,
+            entries = contacts,
+            selectedIndex = listIndex,
+            emptyText = when {
+                contacts.isNotEmpty() -> ""
+                !contactsRequested -> "LOADING…"
+                contactsBlocked -> "CONTACTS ACCESS NEEDED"
+                else -> "NO CONTACTS"
+            },
+            primary = { c: RazrContact -> c.name },
+            // A contact stored with no display name falls back to the digits,
+            // so do not print the same string twice on the row.
+            secondary = { c: RazrContact -> c.number.takeIf { it != c.name } ?: "" },
+        )
+
         RazrView.APPS_LIST -> RazrListScreen(
             palette = palette,
-            title = "Games & Apps",
             entries = apps,
             selectedIndex = listIndex,
             emptyText = "NO APPS FOUND",
@@ -1102,7 +1248,6 @@ private fun ActiveView(
 
         RazrView.CALLS -> RazrListScreen(
             palette = palette,
-            title = "Recent Calls",
             entries = listOf(
                 "Missed calls: $missedCalls",
                 "Notepad: ${lastDialed.ifBlank { "-" }}",
@@ -1180,6 +1325,114 @@ private fun requestDialerRole(context: Context, launch: (Intent) -> Unit) {
     }
 }
 
+/**
+ * Opens the system SMS composer with the recipient pre-filled.
+ *
+ * Deliberately an ACTION_SENDTO handoff rather than sending via SmsManager:
+ * it needs no SEND_SMS permission, and it is what the stock handset's
+ * "Send Text" menu entry effectively did.
+ */
+private fun Context.openSmsComposer(number: String) {
+    val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:${Uri.encode(number)}")).apply {
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    runCatching { startActivity(intent) }
+}
+
+/** Copies to the clipboard. No permission needed for the focused app. */
+private fun Context.copyToClipboard(label: String) {
+    runCatching {
+        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        cm.setPrimaryClip(ClipData.newPlainText(label, label))
+    }
+}
+
+/**
+ * One phonebook row. [number] is kept as dialled rather than formatted, because
+ * that is what the dial line needs.
+ */
+data class RazrContact(val name: String, val number: String)
+
+/** What the handset offers for a highlighted phonebook entry. */
+private enum class ContactAction(val label: String) {
+    CALL("Call"),
+    MESSAGE("Send Message"),
+    COPY("Copy Number"),
+    BACK("Back"),
+}
+
+private val CONTACT_ACTIONS = listOf(
+    ContactAction.CALL,
+    ContactAction.MESSAGE,
+    ContactAction.COPY,
+    ContactAction.BACK,
+)
+
+private fun hasContactsPermission(context: Context): Boolean =
+    ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) ==
+        PackageManager.PERMISSION_GRANTED
+
+/**
+ * Reads the device phonebook.
+ *
+ * Queries only the phone rows so the projection stays cheap on a 176x220
+ * screen that will never show more than the name and the number. Duplicates
+ * are collapsed on the dialled digits, because a contact with a mobile, a home
+ * and a work line would otherwise occupy three adjacent identical-looking rows.
+ *
+ * Returns an empty list rather than throwing when the provider is unavailable,
+ * so the list screen can show its own empty state.
+ */
+private fun readPhonebook(context: Context): List<RazrContact> = try {
+    val out = LinkedHashMap<String, RazrContact>()
+    context.contentResolver.query(
+        Phone.CONTENT_URI,
+        arrayOf(Phone.DISPLAY_NAME, Phone.NUMBER),
+        null,
+        null,
+        "${Phone.DISPLAY_NAME} COLLATE NOCASE ASC"
+    )?.use { c ->
+        val nameIdx = c.getColumnIndex(Phone.DISPLAY_NAME)
+        val numIdx = c.getColumnIndex(Phone.NUMBER)
+        if (nameIdx >= 0 && numIdx >= 0) {
+            while (c.moveToNext()) {
+                val digits = (c.getString(numIdx) ?: "").filter { it.isDigit() || it == '+' }
+                if (digits.isBlank()) continue
+                val name = c.getString(nameIdx)?.trim().orEmpty().ifBlank { digits }
+                // Key on name+digits so one contact's several lines all survive.
+                out["$name\u0000$digits"] = RazrContact(name, digits)
+            }
+        }
+    }
+    out.values.toList()
+} catch (t: Throwable) {
+    // SecurityException without the grant, or a vendor provider that misbehaves.
+    emptyList()
+}
+
+/**
+ * The SIM's operator as a 2G handset would print it.
+ *
+ * Deliberately does not request READ_PHONE_STATE: this project ships no
+ * telephony read permission, and asking for one to decorate a status strip is
+ * not a trade worth making. From API 29 the framework can withhold the name
+ * anyway, so this is a best-effort read that degrades to MOTOROLA -- which is
+ * exactly what the stock handset shows before it locks onto a network.
+ */
+private fun simOperator2G(context: Context): String = try {
+    val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+    val reported = when {
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ->
+            tm.createForSubscriptionId(SubscriptionManager.getDefaultSubscriptionId())
+                .simOperatorName
+        else -> tm.simOperatorName
+    }
+    RazrOperators.resolveFor2G(reported)
+} catch (t: Throwable) {
+    // No SIM, no permission, or a vendor TelephonyManager that throws.
+    RazrOperators.UNKNOWN_OPERATOR
+}
+
 /** Trims trailing zeros so 6.0 reads as "6" and 0.20 as "0.2". */
 private fun trimNumber(v: Float): String =
     if (v == v.toInt().toFloat()) v.toInt().toString()
@@ -1196,6 +1449,8 @@ private val RAZR_MESSAGE_ENTRIES = listOf(
 private fun titleFor(view: RazrView, isRinging: Boolean, currentGameTitle: String): String = when {
     isRinging -> "Incoming Call"
     view == RazrView.CALLS -> "Recent Calls"
+    view == RazrView.PHONEBOOK -> "Phonebook"
+    view == RazrView.PHONEBOOK_ACTIONS -> "Phonebook"
     view == RazrView.APPS_LIST -> "Games & Apps"
     view == RazrView.INBOX -> "Message Inbox"
     view == RazrView.RINGTONES -> "Ring Styles"
@@ -1206,6 +1461,16 @@ private fun titleFor(view: RazrView, isRinging: Boolean, currentGameTitle: Strin
     view == RazrView.MESSAGES -> "Messages"
     view == RazrView.ABOUT -> "Phone Status"
     view == RazrView.CALCULATOR -> "Calculator"
+    view == RazrView.GAMES -> "Games"
+    view == RazrView.GAME -> currentGameTitle
+    view == RazrView.MAIN_MENU -> "Main Menu"
+    view == RazrView.UNLOCK -> "Unlock"
+    view == RazrView.NOTEPAD -> "Notepad"
+    view == RazrView.DATEBOOK -> "Datebook"
+    view == RazrView.VOICE_DIAL -> "Voice Dial"
+    view == RazrView.PHOTO -> "My Pictures"
+    view == RazrView.SETTINGS -> "Settings"
+    view == RazrView.CALL_TIMES -> "Call Times"
     else -> "RAZR V3i"
 }
 

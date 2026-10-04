@@ -19,6 +19,10 @@ enum class RazrView {
     MESSAGES,
     INBOX,
     CALLS,
+    /** Contacts list. DOWN on standby lands here, as on the real handset. */
+    PHONEBOOK,
+    /** Call / Message / Copy sheet for the highlighted contact. */
+    PHONEBOOK_ACTIONS,
     NOTEPAD,
     IN_CALL,
     INCOMING,

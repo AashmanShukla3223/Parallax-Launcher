@@ -97,8 +97,11 @@ None of these are granted at install time. Features silently no-op until the use
 | Notification interception | Notification access (manual jump to `ACTION_NOTIFICATION_LISTENER_SETTINGS`) |
 | Camera (Mode 5) | `CAMERA` runtime grant |
 | Calling / Mode 7 calls | `CALL_PHONE`, `ANSWER_PHONE_CALLS` |
+| Mode 7 Phonebook (DOWN on standby) | `READ_CONTACTS` runtime grant |
 | Being the launcher | `ROLE_HOME` |
 | Place calls via `TelecomManager` | `ROLE_DIALER` |
+
+Reading the SIM operator name for Mode 7 deliberately does **not** add `READ_PHONE_STATE`; it is a best-effort read in `simOperator2G` that degrades to `MOTOROLA`. Do not add that permission for a status-strip label.
 
 There is deliberately **no `POST_NOTIFICATIONS` permission** — the app never posts notifications, it only intercepts. Don't add it without changing the routing design.
 

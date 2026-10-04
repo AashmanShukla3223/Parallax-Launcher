@@ -20,10 +20,120 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.parallax.parallaxlauncher.ui.modes.razr.RazrPalette
+
+/**
+ * The status-strip battery indicator.
+ *
+ * The stock V3i indicator is a capsule divided by tick marks into quarters,
+ * filled left to right, with the terminal nub on the right. It is drawn on a
+ * Canvas rather than composed from bars because the fill has to be continuous
+ * across the whole 1-100% range: a segment count cannot express "6%", and a
+ * 1% charge still has to show a visible sliver or the icon reads as empty.
+ *
+ * Level handling, matching the manual's battery indicator table:
+ *   100%      full, white
+ *   ~50%      half, white
+ *   <= 20%    turns red, as the stock UI does to prompt a charge
+ *   <= 5%     red and pulsing is *not* attempted here; the red plus the
+ *             near-empty fill is the whole signal at this size
+ *   charging  green with the bolt, regardless of level
+ *
+ * @param percent charge level 0..100; values outside are clamped.
+ */
+@Composable
+fun RazrBatteryGlyph(
+    percent: Int,
+    charging: Boolean,
+    ink: Color,
+    modifier: Modifier = Modifier,
+) {
+    val level = percent.coerceIn(0, 100)
+    // Red only when genuinely low, and never while charging -- a green bolt
+    // over a red bar is the classic indicator bug.
+    val low = !charging && level <= 20
+    val fill = when {
+        charging -> Color(0xFF7DFF9E)
+        low -> Color(0xFFFF4B3E)
+        else -> ink
+    }
+    val empty = ink.copy(alpha = 0.26f)
+
+    Canvas(modifier.width(9.dp).height(5.dp)) {
+        val nubW = size.width * 0.13f
+        val bodyW = size.width - nubW
+        val r = size.height * 0.28f
+        val stroke = size.height * 0.15f
+
+        // Terminal nub.
+        drawRoundRect(
+            color = if (level > 0) ink else empty,
+            topLeft = Offset(bodyW, size.height * 0.30f),
+            size = Size(nubW, size.height * 0.40f),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height * 0.12f),
+        )
+
+        // Capsule body.
+        drawRoundRect(
+            color = ink,
+            topLeft = Offset(stroke * 0.5f, stroke * 0.5f),
+            size = Size(bodyW - stroke, size.height - stroke),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(r),
+            style = Stroke(width = stroke),
+        )
+
+        // Continuous fill across the full 1-100% range, inset inside the
+        // outline so it never overlaps the stroke.
+        val inset = stroke + size.height * 0.10f
+        val innerW = bodyW - inset * 2f
+        val innerH = size.height - inset * 2f
+        val frac = (level.coerceIn(1, 100)) / 100f
+        if (level > 0 && innerW > 0f && innerH > 0f) {
+            drawRoundRect(
+                color = fill,
+                topLeft = Offset(inset, inset),
+                size = Size(innerW * frac, innerH),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(innerH * 0.30f),
+            )
+        }
+
+        // Quarter ticks, matching the stock indicator.
+        val tickX = { t: Float -> inset + innerW * t }
+        listOf(0.25f, 0.5f, 0.75f).forEach { t ->
+            drawLine(
+                color = if (innerW * frac > innerW * t) empty else ink.copy(alpha = 0.45f),
+                start = Offset(tickX(t), inset),
+                end = Offset(tickX(t), inset + innerH),
+                strokeWidth = size.height * 0.07f,
+                cap = StrokeCap.Butt,
+            )
+        }
+
+        // Charging bolt, centred over the fill.
+        if (charging) {
+            val cx = size.width * 0.46f
+            val cy = size.height * 0.5f
+            val h = size.height * 0.40f
+            val w = size.height * 0.22f
+            val bolt = Path().apply {
+                moveTo(cx + w * 0.35f, cy - h)
+                lineTo(cx - w * 0.55f, cy + h * 0.10f)
+                lineTo(cx - w * 0.05f, cy + h * 0.10f)
+                lineTo(cx - w * 0.35f, cy + h)
+                lineTo(cx + w * 0.55f, cy - h * 0.10f)
+                lineTo(cx + w * 0.05f, cy - h * 0.10f)
+                close()
+            }
+            drawPath(bolt, Color(0xFF06301A))
+        }
+    }
+}
 
 /**
  * The three chrome bars that frame every stock V3i screen.

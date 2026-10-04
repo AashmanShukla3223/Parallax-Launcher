@@ -42,6 +42,7 @@ import com.parallax.parallaxlauncher.ui.modes.razr.RazrIcon
 import com.parallax.parallaxlauncher.ui.modes.razr.RazrIconGlyph
 import com.parallax.parallaxlauncher.ui.modes.razr.RazrIconTints
 import com.parallax.parallaxlauncher.ui.modes.razr.RazrMenuItem
+import com.parallax.parallaxlauncher.ui.modes.razr.RazrOperators
 import com.parallax.parallaxlauncher.ui.modes.razr.RazrPalette
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -79,6 +80,7 @@ private fun T(
 @Composable
 fun RazrStatusGlyphs(
     palette: RazrPalette,
+    operatorName: String = RazrOperators.UNKNOWN_OPERATOR,
     signalBars: Int,
     batteryPercent: Int,
     charging: Boolean,
@@ -107,7 +109,10 @@ fun RazrStatusGlyphs(
                 )
             }
         }
-        T("2G", ink, 8.7.sp, FontWeight.Bold)
+        // The stock strip prints the network operator, not the technology.
+        // On a 2G handset that is the legacy network name, so "Jio" subscribers
+        // read "Reliance Communications" here.
+        T(operatorName.take(9).uppercase(Locale.ROOT), ink, 8.7.sp, FontWeight.Bold)
         T("▧", ink, 8.7.sp)
         if (unreadMessages > 0) {
             T("✉", palette.badgeInk, 10.2.sp, FontWeight.Bold)
@@ -115,33 +120,14 @@ fun RazrStatusGlyphs(
         }
         Spacer(Modifier.weight(1f))
         T(ringStyleName.take(3).uppercase(Locale.ROOT), ink, 8.sp, FontWeight.Bold)
-        // Battery: vertical segments in a capsule.
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier
-                    .border(0.7.dp, ink, RoundedCornerShape(1.dp))
-                    .padding(1.dp)
-            ) {
-                val filled = (batteryPercent.coerceIn(0, 100) / 34 + 1).coerceIn(1, 3)
-                Row(horizontalArrangement = Arrangement.spacedBy(0.5.dp)) {
-                    repeat(3) { i ->
-                        Box(
-                            Modifier
-                                .width(1.3.dp)
-                                .height(4.5.dp)
-                                .background(
-                                    when {
-                                        i >= filled -> ink.copy(alpha = 0.3f)
-                                        charging -> Color(0xFF7DFF9E)
-                                        else -> ink
-                                    }
-                                )
-                        )
-                    }
-                }
-            }
-            Box(Modifier.width(0.8.dp).height(2.5.dp).background(ink))
-        }
+        // Battery: continuous 1-100% fill, red at or below 20%, green + bolt
+        // while charging. Replaces the old three-segment cap, which could only
+        // ever show full / half / nearly-empty.
+        RazrBatteryGlyph(
+            percent = batteryPercent,
+            charging = charging,
+            ink = ink,
+        )
     }
 }
 
@@ -156,6 +142,7 @@ fun RazrStatusGlyphs(
 @Composable
 fun RazrHomeScreen(
     palette: RazrPalette,
+    operatorName: String = RazrOperators.UNKNOWN_OPERATOR,
     wallpaperRes: Int,
     time: String,
     amPm: String,
@@ -186,7 +173,7 @@ fun RazrHomeScreen(
         ) {
             // Operator and date.
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                T("MOTOROLA", palette.titleInk, 10.2.sp, FontWeight.Bold)
+                T(operatorName.take(11).uppercase(Locale.ROOT), palette.titleInk, 10.2.sp, FontWeight.Bold)
                 T(date.uppercase(Locale.ROOT), palette.titleInk, 10.2.sp, FontWeight.Bold, TextAlign.End)
             }
 
@@ -320,6 +307,72 @@ private fun IconCell(
 }
 
 /**
+ * Contact action sheet.
+ *
+ * The stock handset does not call straight from the phonebook: SELECT opens a
+ * short menu of what you can do with the highlighted contact. Mirroring that
+ * is what makes Call / Message / Copy reachable at all on a three-soft-key
+ * panel, and it keeps the destructive-ish actions one extra press away.
+ */
+@Composable
+fun <T> RazrActionSheet(
+    palette: RazrPalette,
+    heading: String,
+    options: List<T>,
+    selectedIndex: Int,
+    modifier: Modifier = Modifier,
+    label: (T) -> String,
+) {
+    val safe = selectedIndex.coerceIn(0, (options.size - 1).coerceAtLeast(0))
+    Column(
+        modifier
+            .fillMaxSize()
+            .background(palette.field)
+    ) {
+        Box(
+            Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 3.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            T(
+                heading.take(22),
+                palette.ink,
+                12.6.sp,
+                FontWeight.Bold,
+                TextAlign.Center,
+                maxLines = 1,
+            )
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(palette.fieldAlt))
+        Column(Modifier.weight(1f).padding(horizontal = 4.dp, vertical = 3.dp)) {
+            options.forEachIndexed { index, item ->
+                val selected = index == safe
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(
+                            if (selected) {
+                                Brush.horizontalGradient(listOf(palette.selectTop, palette.selectLow))
+                            } else SolidColor(Color.Transparent)
+                        )
+                        .padding(horizontal = 6.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    T(
+                        label(item),
+                        if (selected) palette.selectInk else palette.ink,
+                        14.5.sp,
+                        if (selected) FontWeight.Bold else FontWeight.Normal,
+                        modifier = Modifier.weight(1f),
+                    )
+                    T(">", if (selected) palette.selectInk else palette.inkDim, 15.9.sp, FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+/**
  * Scrollable selection list.
  *
  * Near-white field, bold navy labels, a small `›` chevron on each row, and a
@@ -328,7 +381,6 @@ private fun IconCell(
 @Composable
 fun <T> RazrListScreen(
     palette: RazrPalette,
-    title: String,
     entries: List<T>,
     selectedIndex: Int,
     modifier: Modifier = Modifier,
@@ -343,7 +395,6 @@ fun <T> RazrListScreen(
             .fillMaxSize()
             .background(palette.field)
     ) {
-        RazrTitleBar(palette, title)
         if (entries.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 T(emptyText, palette.inkDim, 13.sp, FontWeight.Normal, TextAlign.Center)
@@ -583,7 +634,6 @@ fun RazrRingStyleScreen(
             .fillMaxSize()
             .background(palette.field)
     ) {
-        RazrTitleBar(palette, "Ring Styles")
         LazyColumn(Modifier.weight(1f)) {
             itemsIndexed(names) { index, name ->
                 val selected = index == safe
@@ -626,7 +676,6 @@ fun RazrThemeScreen(
             .fillMaxSize()
             .background(palette.field)
     ) {
-        RazrTitleBar(palette, "Themes")
         LazyColumn(Modifier.weight(1f)) {
             itemsIndexed(names) { index, name ->
                 val selected = index == safe
@@ -678,7 +727,6 @@ fun RazrInboxList(
             .fillMaxSize()
             .background(palette.field)
     ) {
-        RazrTitleBar(palette, "Message Inbox")
         if (messages.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 T(
@@ -758,6 +806,7 @@ fun RazrInboxList(
 @Composable
 fun RazrCoverPanel(
     palette: RazrPalette,
+    operatorName: String = RazrOperators.UNKNOWN_OPERATOR,
     wallpaperRes: Int,
     time: String,
     amPm: String,
@@ -797,7 +846,7 @@ fun RazrCoverPanel(
                     .padding(horizontal = 2.dp, vertical = 1.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                T("2G", Color.White, 8.7.sp, FontWeight.Bold)
+        T(operatorName.take(9).uppercase(Locale.ROOT), Color.White, 8.7.sp, FontWeight.Bold)
                 if (unread > 0) T("✉$unread", Color(0xFFFFD34D), 8.7.sp, FontWeight.Bold)
                 T("▮", Color.White, 8.7.sp, FontWeight.Bold)
             }
@@ -860,7 +909,7 @@ fun RazrCoverLocked(
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            T("MOTOROLA", palette.inkDim, 11.6.sp, FontWeight.Normal)
+        T("MOTOROLA", palette.inkDim, 11.6.sp, FontWeight.Normal)
             T("RAZR V3i", palette.ink, 21.8.sp, FontWeight.Bold)
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -888,7 +937,6 @@ fun RazrMessageMenu(
             .fillMaxSize()
             .background(palette.field)
     ) {
-        RazrTitleBar(palette, "Messages")
         LazyColumn(Modifier.weight(1f)) {
             itemsIndexed(entries) { index, (icon, label) ->
                 val selected = index == safe
@@ -953,7 +1001,6 @@ fun RazrCalculatorPanel(
             .fillMaxSize()
             .background(palette.field)
     ) {
-        RazrTitleBar(palette, "Calculator")
         Column(
             Modifier
                 .weight(1f)
@@ -992,7 +1039,6 @@ fun RazrAboutScreen(palette: RazrPalette, modifier: Modifier = Modifier) {
             .fillMaxSize()
             .background(palette.field)
     ) {
-        RazrTitleBar(palette, "Phone Status")
         Column(
             Modifier
                 .weight(1f)
