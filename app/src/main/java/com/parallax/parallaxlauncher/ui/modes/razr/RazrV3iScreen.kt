@@ -93,6 +93,12 @@ import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrThemeScreen
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrToast
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrUnlockScreen
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrUpperShell
+import com.parallax.parallaxlauncher.ui.modes.razr.games.Nav
+import com.parallax.parallaxlauncher.ui.modes.razr.games.RAZR_GAMES
+import com.parallax.parallaxlauncher.ui.modes.razr.games.RazrGame
+import com.parallax.parallaxlauncher.ui.modes.razr.games.RazrGameHost
+import com.parallax.parallaxlauncher.ui.modes.razr.games.RazrGamesMenu
+import com.parallax.parallaxlauncher.ui.modes.razr.games.RazrScores
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -153,6 +159,14 @@ fun RazrV3iScreen(
     var callSeconds by rememberSaveable { mutableIntStateOf(0) }
     var callVolume by rememberSaveable { mutableIntStateOf(7) }
     var missedCalls by rememberSaveable { mutableIntStateOf(0) }
+    var gameIndex by rememberSaveable { mutableIntStateOf(0) }
+    var playingGameId by rememberSaveable { mutableStateOf<String?>(null) }
+    val scores = remember { RazrScores(context) }
+    val currentGame: RazrGame? = playingGameId?.let { id ->
+        remember(playingGameId) {
+            RAZR_GAMES.firstOrNull { g -> g().title == id }?.invoke()
+        }
+    }
 
     // ---- Clock -----------------------------------------------------------------
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -162,7 +176,8 @@ fun RazrV3iScreen(
             delay(1000)
         }
     }
-    val clockText = remember(now) { SimpleDateFormat("HH:mm", Locale.ROOT).format(Date(now)) }
+    // 12-hour clock with a matching AM/PM marker — never 24-hour text next to "PM".
+val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Date(now)) }
     val amPm = remember(now) {
         SimpleDateFormat("a", Locale.ROOT).format(Date(now)).uppercase(Locale.ROOT)
     }
@@ -440,7 +455,7 @@ fun RazrV3iScreen(
             2 -> { view = RazrView.MESSAGES; subIndex = 0 }
             3 -> { openContacts(); goHome() }
             4 -> openBrowser()
-            5 -> { view = RazrView.APPS_LIST; listIndex = 0 }
+            5 -> { view = RazrView.GAMES; listIndex = 0 }
             6 -> { view = RazrView.RINGTONES; listIndex = 0 }
             7 -> { view = RazrView.TOOLS; subIndex = 0 }
             8 -> { view = RazrView.SETTINGS; subIndex = 0 }
@@ -471,6 +486,18 @@ fun RazrV3iScreen(
 
     // ---- Keypad input ----------------------------------------------------------
     fun handleKey(ch: Char) {
+        // A running game consumes every key itself.
+        currentGame?.let { game ->
+            if (view == RazrView.GAME) {
+                when (ch) {
+                    '0' -> { playingGameId = null; view = RazrView.GAMES }
+                    '5' -> if (game.isOver) game.reset() else game.onKey(ch)
+                    else -> game.onKey(ch)
+                }
+                tonePlayer.playDtmf(ch)
+                return
+            }
+        }
         tonePlayer.playDtmf(ch)
         if (locked) {
             // '*' opens the real Android lock screen: swipe up, enter the PIN.
@@ -534,6 +561,7 @@ fun RazrV3iScreen(
     }
 
     fun onUp() {
+        if (view == RazrView.GAME) { currentGame?.onNav(Nav.UP); return }
         when {
             locked -> Unit
             view == RazrView.STANDBY -> cycleRingStyle(1)
@@ -542,6 +570,7 @@ fun RazrV3iScreen(
             view == RazrView.TOOLS -> if (subIndex >= 3) { subIndex -= 3; tonePlayer.playRazrChirp() }
             view == RazrView.MESSAGES -> if (subIndex > 0) { subIndex -= 1; tonePlayer.playRazrChirp() }
             view == RazrView.THEME -> if (subIndex > 0) { subIndex -= 1; tonePlayer.playRazrChirp() }
+            view == RazrView.GAMES -> if (listIndex < RAZR_GAMES.lastIndex) { listIndex += 1; tonePlayer.playRazrChirp() }
             view == RazrView.APPS_LIST -> if (listIndex > 0) { listIndex -= 1; tonePlayer.playRazrChirp() }
             view == RazrView.INBOX -> if (listIndex > 0) { listIndex -= 1; tonePlayer.playRazrChirp() }
             view == RazrView.IN_CALL -> { callVolume = (callVolume + 1).coerceAtMost(10); tonePlayer.playRazrChirp() }
@@ -549,6 +578,7 @@ fun RazrV3iScreen(
     }
 
     fun onDown() {
+        if (view == RazrView.GAME) { currentGame?.onNav(Nav.DOWN); return }
         when {
             locked -> Unit
             view == RazrView.STANDBY -> openCalls()
@@ -570,6 +600,7 @@ fun RazrV3iScreen(
     }
 
     fun onLeft() {
+        if (view == RazrView.GAME) { currentGame?.onNav(Nav.LEFT); return }
         when {
             locked -> Unit
             view == RazrView.STANDBY -> { view = RazrView.INBOX; listIndex = 0 }
@@ -580,6 +611,7 @@ fun RazrV3iScreen(
     }
 
     fun onRight() {
+        if (view == RazrView.GAME) { currentGame?.onNav(Nav.RIGHT); return }
         when {
             locked -> Unit
             view == RazrView.STANDBY -> openCamera()
@@ -610,6 +642,13 @@ fun RazrV3iScreen(
                 toast = "THEME APPLIED"
                 goHome()
             }
+            RazrView.GAMES -> {
+                val g = RAZR_GAMES[listIndex.coerceIn(RAZR_GAMES.indices)].invoke()
+                playingGameId = g.title
+                view = RazrView.GAME
+                g.reset()
+            }
+            RazrView.GAME -> currentGame?.onNav(Nav.CENTRE)
             RazrView.APPS_LIST -> apps.getOrNull(listIndex)?.let {
                 tonePlayer.playRazrChirp()
                 repo.launch(it)
@@ -627,6 +666,7 @@ fun RazrV3iScreen(
         tonePlayer.playRazrChirp()
         if (locked) return
         when (view) {
+            RazrView.GAME, RazrView.GAMES -> { playingGameId = null; goHome() }
             RazrView.STANDBY -> { view = RazrView.INBOX; listIndex = 0 }
             RazrView.IN_CALL -> CallManager.mute(!isMuted)
             RazrView.INCOMING -> CallManager.reject()
@@ -704,7 +744,7 @@ fun RazrV3iScreen(
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
-                    RazrTitleBar(palette, titleFor(view, isRinging))
+                    RazrTitleBar(palette, titleFor(view, isRinging, currentGame?.title ?: "Games"))
 
                     Box(Modifier.weight(1f).fillMaxWidth()) {
                         when {
@@ -744,6 +784,14 @@ fun RazrV3iScreen(
                                 batteryPct = telemetryState.batteryPct.coerceAtLeast(0),
                                 missedCalls = missedCalls,
                                 lastDialed = lastDialed,
+                                scores = scores,
+                                currentGame = currentGame,
+                                playingGameId = playingGameId,
+                                onPickGame = { idx ->
+                                    playingGameId = RAZR_GAMES[idx].invoke().title
+                                    view = RazrView.GAME
+                                },
+                                onExitGames = { playingGameId = null; view = RazrView.GAMES },
                             )
                         }
 
@@ -901,6 +949,11 @@ private fun ActiveView(
     batteryPct: Int,
     missedCalls: Int,
     lastDialed: String,
+    scores: RazrScores,
+    currentGame: RazrGame?,
+    playingGameId: String?,
+    onPickGame: (Int) -> Unit,
+    onExitGames: () -> Unit,
 ) {
     when (view) {
         RazrView.STANDBY -> RazrHomeScreen(
@@ -924,6 +977,28 @@ private fun ActiveView(
             entries = RAZR_MESSAGE_ENTRIES,
             selectedIndex = subIndex,
         )
+
+        RazrView.GAMES -> RazrGamesMenu(
+            palette = palette,
+            games = RAZR_GAMES,
+            scores = scores,
+            selectedIndex = listIndex,
+        )
+
+        RazrView.GAME -> {
+            val game = currentGame
+            if (game == null) {
+                LaunchedEffect(Unit) { onExitGames() }
+            } else {
+                RazrGameHost(
+                    palette = palette,
+                    game = game,
+                    scores = scores,
+                    onExit = onExitGames,
+                    onRetry = { game.reset() },
+                )
+            }
+        }
 
         RazrView.INBOX -> RazrInboxList(palette, messages, listIndex)
 
@@ -1029,7 +1104,7 @@ private val RAZR_MESSAGE_ENTRIES = listOf(
 )
 
 /** Title shown in the pale title bar for the current view. */
-private fun titleFor(view: RazrView, isRinging: Boolean): String = when {
+private fun titleFor(view: RazrView, isRinging: Boolean, currentGameTitle: String): String = when {
     isRinging -> "Incoming Call"
     view == RazrView.CALLS -> "Recent Calls"
     view == RazrView.APPS_LIST -> "Games & Apps"

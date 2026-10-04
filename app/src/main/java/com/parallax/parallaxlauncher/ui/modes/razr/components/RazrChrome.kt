@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -131,20 +132,30 @@ fun RazrPixelScreen(
     }
 }
 
-/** The 96 x 80 external CSTN cover display. */
+/**
+ * The 96 x 80 external CSTN cover display.
+ *
+ * Sized explicitly rather than with `aspectRatio`, which does not resolve
+ * reliably inside a wrap-content parent and was rendering this panel portrait.
+ * Landscape 96:80 means height = width * 80/96.
+ */
 @Composable
 fun RazrCoverScreen(
     palette: RazrPalette,
     modifier: Modifier = Modifier,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    Box(
-        modifier = modifier
-            .aspectRatio(96f / 80f)
-            .background(palette.field)
-    ) {
-        Box(Modifier.fillMaxSize()) { content() }
-        Canvas(Modifier.fillMaxSize()) { drawSubpixels() }
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+        val height = maxWidth * (80f / 96f)
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(height)
+                .background(palette.field)
+        ) {
+            Box(Modifier.fillMaxSize()) { content() }
+            Canvas(Modifier.fillMaxSize()) { drawSubpixels() }
+        }
     }
 }
 

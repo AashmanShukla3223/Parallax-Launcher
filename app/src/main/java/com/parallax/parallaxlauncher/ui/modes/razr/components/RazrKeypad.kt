@@ -343,9 +343,9 @@ private fun DrawScope.drawEtch(palette: RazrPalette) {
 /** Moulded navigation rocker with its raised silver select button. */
 private fun DrawScope.drawDpad(palette: RazrPalette) {
     val cx = size.width * 0.5f
-    val cy = size.height * 0.280f
-    val r = size.width * 0.190f
-    val ring = size.width * 0.014f
+    val cy = size.height * 0.275f
+    val r = size.width * 0.155f
+    val ring = size.width * 0.013f
 
     drawCircle(
         color = palette.grooveGlow.copy(alpha = 0.30f),
@@ -353,15 +353,18 @@ private fun DrawScope.drawDpad(palette: RazrPalette) {
         style = Stroke(width = ring * 3f),
     )
     drawCircle(color = palette.groove, radius = r + ring * 0.5f, style = Stroke(width = ring))
+    // Opaque backing disc so the rocker reads at its true size rather than
+    // blending into the deck.
+    drawCircle(color = palette.dpadRing, radius = r - ring * 0.5f, center = Offset(cx, cy))
     drawCircle(
         brush = Brush.radialGradient(
-            colors = listOf(palette.wellFace, palette.deckLow),
+            colors = listOf(palette.wellFace, palette.deckMid),
             center = Offset(cx - r * 0.25f, cy - r * 0.30f),
         ),
-        radius = r,
+        radius = r - ring * 0.5f,
         center = Offset(cx, cy),
     )
-    drawCircle(Color.Black.copy(alpha = 0.30f), r, Offset(cx, cy), style = Stroke(width = ring * 0.6f))
+    drawCircle(Color.Black.copy(alpha = 0.35f), r, Offset(cx, cy), style = Stroke(width = ring * 0.8f))
 
     // Four direction pips.
     val pip = r * 0.16f

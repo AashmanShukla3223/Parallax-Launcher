@@ -22,6 +22,10 @@ enum class RazrView {
     NOTEPAD,
     IN_CALL,
     INCOMING,
+    /** RAZR-exclusive game picker. */
+    GAMES,
+    /** A RAZR-exclusive game in progress. */
+    GAME,
     TOOLS,
     CALCULATOR,
     DATEBOOK,
