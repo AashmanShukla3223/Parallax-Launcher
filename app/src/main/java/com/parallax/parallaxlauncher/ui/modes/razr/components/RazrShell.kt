@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.parallax.parallaxlauncher.ui.modes.razr.RazrPalette
@@ -36,16 +37,23 @@ import com.parallax.parallaxlauncher.ui.modes.razr.RazrPalette
 /**
  * The upper clamshell: earpiece slot, Motorola batwing medallion, MOTOROLA
  * wordmark, then the 2.2" panel recessed inside a black bezel.
+ *
+ * Sized from an explicit [panelWidth] instead of a `weight()`. Competing with
+ * `weight()` inside the chassis Column was why the panel stretched wide and
+ * short, the title bar fell off, and everything inside was laid out against the
+ * wrong box. The panel height is derived from the true 176:220 ratio.
  */
 @Composable
 fun RazrUpperShell(
     palette: RazrPalette,
+    panelWidth: Dp,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
+    val panelHeight = panelWidth * (220f / 176f)
     Column(
         modifier = modifier
-            .fillMaxWidth()
+            .width(panelWidth)
             .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 3.dp, bottomEnd = 3.dp))
             .background(
                 Brush.verticalGradient(
@@ -57,19 +65,17 @@ fun RazrUpperShell(
                 palette.chassisEdge,
                 RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 3.dp, bottomEnd = 3.dp)
             )
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(horizontal = 8.dp, vertical = 5.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // Earpiece slot.
         Box(
             Modifier
-                .width(38.dp)
+                .width(panelWidth * 0.34f)
                 .height(4.dp)
                 .clip(RoundedCornerShape(2.dp))
                 .background(palette.chassisEdge)
         )
         Spacer(Modifier.height(3.dp))
-        // Medallion + wordmark.
         Row(verticalAlignment = Alignment.CenterVertically) {
             Medallion(palette, 11.dp)
             Spacer(Modifier.width(4.dp))
@@ -83,16 +89,16 @@ fun RazrUpperShell(
             )
         }
         Spacer(Modifier.height(4.dp))
-        // Panel recess.
+        // Panel recess, true 176x220.
         Box(
             Modifier
-                .fillMaxWidth()
-                .weight(1f, fill = true)
+                .width(panelWidth - 16.dp)
+                .height(panelHeight - 16.dp)
                 .clip(RoundedCornerShape(3.dp))
                 .background(palette.bezel)
                 .border(1.dp, palette.bezelEdge, RoundedCornerShape(3.dp))
-                .padding(4.dp),
-            contentAlignment = Alignment.Center
+                .padding(3.dp),
+            contentAlignment = Alignment.Center,
         ) {
             content()
         }
@@ -166,19 +172,26 @@ fun RazrHinge(
 }
 
 /**
- * The lower clamshell when closed: the outer face with the camera lens,
- * the cover display, and the bottom speaker grille.
+ * The outer face when closed: camera lens, MOTOROLA wordmark, the true 96 x 80
+ * cover panel, the batwing medallion, and the chin grille.
+ *
+ * Every child gets an explicit size derived from [shellWidth]. The previous
+ * version let the display wrap its content, so the shell overflowed and pushed
+ * the medallion and grille off-screen — the "jail".
  */
 @Composable
 fun RazrCoverShell(
     palette: RazrPalette,
+    shellWidth: Dp,
     modifier: Modifier = Modifier,
     onOpen: () -> Unit,
     content: @Composable () -> Unit,
 ) {
+    // 96 x 80 panel, inset inside the shell.
+    val panelWidth = shellWidth - 22.dp
     Column(
         modifier = modifier
-            .fillMaxWidth()
+            .width(shellWidth)
             .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp, bottomStart = 20.dp, bottomEnd = 20.dp))
             .background(
                 Brush.verticalGradient(
@@ -191,20 +204,19 @@ fun RazrCoverShell(
                 RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp, bottomStart = 20.dp, bottomEnd = 20.dp)
             )
             .clickable(onClick = onOpen)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = 11.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
     ) {
         // Camera lens + mirror window.
         Box(
             Modifier
-                .size(26.dp)
+                .size(24.dp)
                 .clip(RoundedCornerShape(6.dp))
                 .background(palette.bezel)
                 .border(1.dp, palette.chassisEdge, RoundedCornerShape(6.dp)),
             contentAlignment = Alignment.Center
         ) {
-            Canvas(Modifier.size(13.dp)) {
+            Canvas(Modifier.size(12.dp)) {
                 drawCircle(color = Color(0xFF1B2A44), radius = size.minDimension / 2f)
                 drawCircle(color = Color(0xFF3A5C8C), radius = size.minDimension / 4.4f)
             }
@@ -220,26 +232,23 @@ fun RazrCoverShell(
         )
         Spacer(Modifier.height(6.dp))
 
-        // The true 96 x 80 external CSTN panel — landscape and deliberately
-        // small, exactly as it sits on the outer face of the closed handset.
-        // It is NOT stretched to fill the shell.
+        // True 96 x 80 landscape panel.
         Box(
             Modifier
-                .fillMaxWidth()
+                .width(panelWidth)
+                .height(panelWidth * (80f / 96f))
                 .clip(RoundedCornerShape(3.dp))
                 .background(palette.bezel)
                 .border(1.dp, palette.bezelEdge, RoundedCornerShape(3.dp))
                 .padding(3.dp),
-            contentAlignment = Alignment.Center
+            contentAlignment = Alignment.Center,
         ) { content() }
 
         Spacer(Modifier.height(7.dp))
-
-        // Batwing medallion below the cover display, as on the physical shell.
         Medallion(palette, 20.dp)
         Spacer(Modifier.height(7.dp))
-        Spacer(Modifier.height(6.dp))
-        SpeakerGrille(palette)
+        SpeakerGrille(palette, Modifier.width(panelWidth * 0.7f))
+        Spacer(Modifier.height(4.dp))
     }
 }
 

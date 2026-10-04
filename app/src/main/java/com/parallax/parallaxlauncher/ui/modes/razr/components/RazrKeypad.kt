@@ -269,15 +269,26 @@ private fun KeyLegend(
 
 // ---- Etched groove network ---------------------------------------------------
 
+/**
+ * The laser-etch network.
+ *
+ * Rebuilt without the old "keyhole arch": that single continuous curve was
+ * rendering as a stray ring over the 2/5/8 column. The deck is now described
+ * the way the reference actually reads — a rounded rectangle around the D-pad
+ * deck, then three vertical channels with a horizontal brace per key. Strokes
+ * are deliberately light so the etch reads as cut into the metal rather than
+ * drawn on top of it.
+ */
 private fun DrawScope.drawEtch(palette: RazrPalette) {
     val w = size.width
     val h = size.height
-    val g = minOf(w, h) * 0.011f
+    val g = minOf(w, h) * 0.0072f
 
     fun etch(path: Path, width: Float = g) {
+        // Faint bleed only — a heavy glow was reading as a second outline.
         drawPath(
-            path, palette.grooveGlow.copy(alpha = 0.26f),
-            style = Stroke(width = width * 2.8f, cap = StrokeCap.Round),
+            path, palette.grooveGlow.copy(alpha = 0.16f),
+            style = Stroke(width = width * 2.0f, cap = StrokeCap.Round),
         )
         drawPath(path, palette.groove, style = Stroke(width = width, cap = StrokeCap.Round))
     }
@@ -286,49 +297,42 @@ private fun DrawScope.drawEtch(palette: RazrPalette) {
         etch(Path().apply { moveTo(x1, y1); lineTo(x2, y2) }, width)
     }
 
-    // --- Top deck: the "keyhole" arch around the rocker.
+    // --- D-pad deck: a plain rounded rectangle, no arch --------------------
+    val deckTop = h * 0.105f
     val deckBottom = h * 0.440f
     val left = w * 0.065f
     val right = w * 0.935f
-    val shoulder = h * 0.160f
-    val peak = h * 0.100f
-    val innerL = w * 0.400f
-    val innerR = w * 0.600f
-
+    val r = h * 0.030f
     etch(
         Path().apply {
-            moveTo(left, deckBottom)
-            lineTo(left, shoulder)
-            quadraticTo(left, shoulder - h * 0.030f, left + w * 0.050f, shoulder - h * 0.030f)
-            lineTo(innerL - w * 0.030f, shoulder - h * 0.030f)
-            quadraticTo(innerL, shoulder - h * 0.070f, innerL + w * 0.030f, peak)
-            lineTo(innerR - w * 0.030f, peak)
-            quadraticTo(innerR, shoulder - h * 0.070f, innerR + w * 0.030f, shoulder - h * 0.030f)
-            lineTo(right - w * 0.050f, shoulder - h * 0.030f)
-            quadraticTo(right, shoulder - h * 0.030f, right, shoulder)
-            lineTo(right, deckBottom)
+            addRoundRect(
+                RoundRect(
+                    left = left, top = deckTop,
+                    right = right, bottom = deckBottom,
+                    cornerRadius = CornerRadius(r),
+                )
+            )
         }
     )
-    line(left, deckBottom, right, deckBottom)
 
     // Voice-key well at the very top centre.
     etch(
         Path().apply {
             addRoundRect(
                 RoundRect(
-                    left = w * 0.440f, top = h * 0.042f,
-                    right = w * 0.560f, bottom = h * 0.060f,
-                    cornerRadius = CornerRadius(h * 0.009f),
+                    left = w * 0.450f, top = h * 0.038f,
+                    right = w * 0.550f, bottom = h * 0.058f,
+                    cornerRadius = CornerRadius(h * 0.010f),
                 )
             )
         },
         width = g * 0.7f,
     )
 
-    // --- Numeric block: three channels, centre one narrower.
+    // --- Numeric block: three channels, centre one narrower ---------------
     val starts = listOf(0.065f, 0.375f, 0.675f)
     val ends = listOf(0.325f, 0.625f, 0.935f)
-    val rowLines = listOf(0.455f, 0.567f, 0.680f, 0.792f, 0.905f, 0.985f)
+    val rowLines = listOf(0.455f, 0.587f, 0.720f, 0.852f, 0.985f)
     val blockTop = h * rowLines.first()
     val blockBottom = h * rowLines.last()
 
@@ -347,12 +351,21 @@ private fun DrawScope.drawDpad(palette: RazrPalette) {
     val r = size.width * 0.155f
     val ring = size.width * 0.013f
 
+    // These two must name the same centre as the disc below. Omitting it left
+    // them at the canvas centre (h/2) while the rocker sat at 0.275h, which is
+    // what painted a stray blue ring over the 2/5/8 column.
     drawCircle(
         color = palette.grooveGlow.copy(alpha = 0.30f),
         radius = r + ring * 1.5f,
+        center = Offset(cx, cy),
         style = Stroke(width = ring * 3f),
     )
-    drawCircle(color = palette.groove, radius = r + ring * 0.5f, style = Stroke(width = ring))
+    drawCircle(
+        color = palette.groove,
+        radius = r + ring * 0.5f,
+        center = Offset(cx, cy),
+        style = Stroke(width = ring),
+    )
     // Opaque backing disc so the rocker reads at its true size rather than
     // blending into the deck.
     drawCircle(color = palette.dpadRing, radius = r - ring * 0.5f, center = Offset(cx, cy))

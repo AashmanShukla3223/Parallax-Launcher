@@ -17,15 +17,22 @@ import android.provider.MediaStore
 import android.provider.Settings as AndroidSettings
 import android.telecom.Call
 import android.telecom.TelecomManager
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -46,7 +53,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -105,7 +114,7 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Mode 7 — Motorola RAZR V3i.
+ * Mode 7 ? Motorola RAZR V3i.
  *
  * A working clamshell: the upper shell carries the earpiece, the medallion and
  * the 2.2" 176x220 internal panel; the lower shell carries the laser-etched
@@ -141,6 +150,23 @@ fun RazrV3iScreen(
 
     // ---- Hardware state --------------------------------------------------------
     var flapOpen by rememberSaveable { mutableStateOf(false) }
+
+    // The flip is a real mechanical action, so it animates about the hinge
+    // line rather than popping between states.
+    val flip by animateFloatAsState(
+        targetValue = if (flapOpen) 1f else 0f,
+        animationSpec = tween(durationMillis = 320),
+        label = "flip",
+    )
+
+    fun setFlap(open: Boolean) {
+        if (flapOpen != open) haptics.thud()
+        flapOpen = open
+        tonePlayer.playRazrChirp()
+    }
+
+    // System back closes the flip before it leaves the launcher.
+    BackHandler(enabled = flapOpen) { setFlap(false) }
     // The 2G handset only demanded its own unlock code while the device itself
     // was locked. Mirror the system lock so we never nag when the phone is
     // already unlocked, and fall back to the code when it is.
@@ -176,7 +202,7 @@ fun RazrV3iScreen(
             delay(1000)
         }
     }
-    // 12-hour clock with a matching AM/PM marker — never 24-hour text next to "PM".
+    // 12-hour clock with a matching AM/PM marker ? never 24-hour text next to "PM".
 val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Date(now)) }
     val amPm = remember(now) {
         SimpleDateFormat("a", Locale.ROOT).format(Date(now)).uppercase(Locale.ROOT)
@@ -193,7 +219,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
 
     val currencySymbol = remember(settings.callCurrencyIndex) {
         when (settings.callCurrencyIndex) {
-            0 -> "₹"; 1 -> "p"; 2 -> "$"; else -> "¢"
+            0 -> "?"; 1 -> "p"; 2 -> "$"; else -> "?"
         }
     }
     // Two rates accrue and are summed:
@@ -667,6 +693,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         if (locked) return
         when (view) {
             RazrView.GAME, RazrView.GAMES -> { playingGameId = null; goHome() }
+            RazrView.STANDBY -> setFlap(false)
             RazrView.STANDBY -> { view = RazrView.INBOX; listIndex = 0 }
             RazrView.IN_CALL -> CallManager.mute(!isMuted)
             RazrView.INCOMING -> CallManager.reject()
@@ -707,8 +734,8 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         locked -> ""
         view == RazrView.IN_CALL -> "SPKR"
         view == RazrView.INCOMING -> "ANSWER"
-        view == RazrView.STANDBY -> "CAMERA"
         view == RazrView.DIALING -> "CANCEL"
+        view == RazrView.STANDBY -> "CLOSE FLIP"
         else -> "BACK"
     }
 
@@ -717,207 +744,269 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
     ].res
 
     // ---- Chassis ---------------------------------------------------------------
-    Column(
-        modifier = Modifier
+    //
+    // Geometry is derived once, up front, from the space actually available.
+    // The panel is a true 176x220 and the deck sits below at a fixed ratio; if
+    // the combined height would not fit, the whole handset shrinks. Nothing here
+    // competes with weight(), which is what previously let the panel stretch
+    // wide and short and drop the title bar off-screen.
+    BoxWithConstraints(
+        Modifier
             .fillMaxSize()
             .background(Color(0xFF0A0B0D))
             .statusBarsPadding()
             .navigationBarsPadding()
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .padding(horizontal = 6.dp, vertical = 4.dp),
+        contentAlignment = Alignment.Center,
     ) {
-      // Flip open: the full clamshell — inner panel, hinge, keypad.
-      if (flapOpen) {
-        RazrUpperShell(palette, Modifier.weight(1f).fillMaxWidth()) {
-            RazrPixelScreen(palette = palette, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.fillMaxSize()) {
-                    RazrStatusStrip(palette) {
-                        RazrStatusGlyphs(
-                            palette = palette,
-                            signalBars = 3,
-                            batteryPercent = telemetryState.batteryPct.coerceAtLeast(0),
-                            charging = telemetryState.charging,
-                            unreadMessages = unread,
-                            ringStyleName = RAZR_RING_STYLES[
-                                settings.razrRingStyleIndex.coerceIn(RAZR_RING_STYLES.indices)
-                            ].name,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                    RazrTitleBar(palette, titleFor(view, isRinging, currentGame?.title ?: "Games"))
+        val availW = maxWidth
+        val availH = maxHeight
+        val shellChrome = 34.dp
+        val hingeH = 14.dp
+        val panelH = availW * (220f / 176f)
+        val keypadNaturalH = availW * 1.02f
+        val naturalH = shellChrome + panelH + hingeH + keypadNaturalH
+        val fit = if (naturalH <= availH) 1f else (availH / naturalH)
+        val fittedWidth = availW * fit
+        val keypadHeight = keypadNaturalH * fit
 
-                    Box(Modifier.weight(1f).fillMaxWidth()) {
-                        when {
-                            isRinging -> RazrIncomingCallScreen(palette, connectedNumber)
-                            locked -> RazrUnlockScreen(palette, unlockError)
-                            else -> ActiveView(
-                                view = view,
+        Column(
+            modifier = Modifier.width(availW),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            // ---- Clamshell -----------------------------------------------------
+            // The upper half and hinge only occupy the layout while the flip is
+            // opening or is open. At rest closed they are removed outright --
+            // otherwise two invisible boxes still consume height and push the
+            // lower half off-screen, which is what left the closed state black.
+            if (flip > 0.002f) {
+                Box(
+                    Modifier
+                        .width(fittedWidth)
+                        .graphicsLayer {
+                            transformOrigin = TransformOrigin(0.5f, 1f)
+                            rotationX = (1f - flip) * -104f
+                            cameraDistance = 16f * density
+                            alpha = flip.coerceIn(0f, 1f)
+                        },
+                ) {
+                    RazrUpperShell(palette, panelWidth = fittedWidth) {
+                            RazrPixelScreen(palette = palette, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.fillMaxSize()) {
+                        RazrStatusStrip(palette) {
+                            RazrStatusGlyphs(
                                 palette = palette,
-                                settings = settings,
-                                wallpaperRes = wallpaper,
-                                apps = apps,
-                                messages = messages,
-                                menuIndex = menuIndex,
-                                subIndex = subIndex,
-                                listIndex = listIndex,
-                                dialBuffer = dialBuffer,
-                                clockText = clockText,
-
-                                amPm = amPm,
-                                dateText = dateText,
-                                callSeconds = callSeconds,
-                                callStatus = when {
-                                    isOnHold -> "CALL ON HOLD"
-                                    live?.state == Call.STATE_DIALING ||
-                                        live?.state == Call.STATE_CONNECTING -> "CALLING..."
-                                    else -> "CONNECTED"
-                                },
-                                number = connectedNumber,
-                                perSecondLabel = perSecondLabel,
-                                perMinuteLabel = perMinuteLabel,
-                                secondsChargedLabel = secondsChargedLabel,
-                                minutesChargedLabel = minutesChargedLabel,
-                                totalLabel = totalLabel,
-                                isMuted = isMuted,
-                                isOnHold = isOnHold,
-                                isSpeaker = isSpeaker,
-                                batteryPct = telemetryState.batteryPct.coerceAtLeast(0),
-                                missedCalls = missedCalls,
-                                lastDialed = lastDialed,
-                                scores = scores,
-                                currentGame = currentGame,
-                                playingGameId = playingGameId,
-                                onPickGame = { idx ->
-                                    playingGameId = RAZR_GAMES[idx].invoke().title
-                                    view = RazrView.GAME
-                                },
-                                onExitGames = { playingGameId = null; view = RazrView.GAMES },
+                                signalBars = 3,
+                                batteryPercent = telemetryState.batteryPct.coerceAtLeast(0),
+                                charging = telemetryState.charging,
+                                unreadMessages = unread,
+                                ringStyleName = RAZR_RING_STYLES[
+                                    settings.razrRingStyleIndex.coerceIn(RAZR_RING_STYLES.indices)
+                                ].name,
+                                modifier = Modifier.fillMaxWidth(),
                             )
                         }
+                        RazrTitleBar(palette, titleFor(view, isRinging, currentGame?.title ?: "Games"))
 
-                        // The in-app alert floats over whatever view is showing.
-                        Column(
-                            Modifier.fillMaxSize().padding(3.dp),
-                            verticalArrangement = Arrangement.Top,
-                        ) {
-                            RazrNotificationAlert(
-                                palette = palette,
-                                alert = intercepted,
-                                onOpenMessaging = { openMessaging() },
-                            )
-                        }
+                        Box(Modifier.weight(1f).fillMaxWidth()) {
+                            when {
+                                isRinging -> RazrIncomingCallScreen(palette, connectedNumber)
+                                locked -> RazrUnlockScreen(palette, unlockError)
+                                else -> ActiveView(
+                                    view = view,
+                                    palette = palette,
+                                    settings = settings,
+                                    wallpaperRes = wallpaper,
+                                    apps = apps,
+                                    messages = messages,
+                                    menuIndex = menuIndex,
+                                    subIndex = subIndex,
+                                    listIndex = listIndex,
+                                    dialBuffer = dialBuffer,
+                                    clockText = clockText,
 
-                        toast?.let { message ->
-                            Box(
-                                Modifier.fillMaxSize().padding(bottom = 24.dp),
-                                contentAlignment = Alignment.BottomCenter,
+                                    amPm = amPm,
+                                    dateText = dateText,
+                                    callSeconds = callSeconds,
+                                    callStatus = when {
+                                        isOnHold -> "CALL ON HOLD"
+                                        live?.state == Call.STATE_DIALING ||
+                                            live?.state == Call.STATE_CONNECTING -> "CALLING..."
+                                        else -> "CONNECTED"
+                                    },
+                                    number = connectedNumber,
+                                    perSecondLabel = perSecondLabel,
+                                    perMinuteLabel = perMinuteLabel,
+                                    secondsChargedLabel = secondsChargedLabel,
+                                    minutesChargedLabel = minutesChargedLabel,
+                                    totalLabel = totalLabel,
+                                    isMuted = isMuted,
+                                    isOnHold = isOnHold,
+                                    isSpeaker = isSpeaker,
+                                    batteryPct = telemetryState.batteryPct.coerceAtLeast(0),
+                                    missedCalls = missedCalls,
+                                    lastDialed = lastDialed,
+                                    scores = scores,
+                                    currentGame = currentGame,
+                                    playingGameId = playingGameId,
+                                    onPickGame = { idx ->
+                                        playingGameId = RAZR_GAMES[idx].invoke().title
+                                        view = RazrView.GAME
+                                    },
+                                    onExitGames = { playingGameId = null; view = RazrView.GAMES },
+                                )
+                            }
+
+                            // The in-app alert floats over whatever view is showing.
+                            Column(
+                                Modifier.fillMaxSize().padding(3.dp),
+                                verticalArrangement = Arrangement.Top,
                             ) {
-                                RazrToast(palette, message, Modifier.padding(horizontal = 6.dp))
+                                RazrNotificationAlert(
+                                    palette = palette,
+                                    alert = intercepted,
+                                    onOpenMessaging = { openMessaging() },
+                                )
+                            }
+
+                            toast?.let { message ->
+                                Box(
+                                    Modifier.fillMaxSize().padding(bottom = 24.dp),
+                                    contentAlignment = Alignment.BottomCenter,
+                                ) {
+                                    RazrToast(palette, message, Modifier.padding(horizontal = 6.dp))
+                                }
                             }
                         }
-                    }
 
-                    RazrSoftKeyBar(palette, left = softLeft, center = softCenter, right = softRight)
+                        RazrSoftKeyBar(palette, left = softLeft, center = softCenter, right = softRight)
+                    }
+                }
+                    }
+                }
+
+                Box(Modifier.graphicsLayer { alpha = flip }) {
+                    RazrHinge(palette, Modifier.width(fittedWidth), open = flapOpen) {
+                        setFlap(!flapOpen)
+                    }
                 }
             }
-        }
 
-        RazrHinge(palette, Modifier.fillMaxWidth(), open = flapOpen) {
-            haptics.thud()
-            flapOpen = !flapOpen
-            tonePlayer.playRazrChirp()
-        }
-
-            RazrKeypad(
-                palette = palette,
-                modifier = Modifier.weight(1.15f),
-                haptics = haptics,
-                onUp = { onUp() },
-                onDown = { onDown() },
-                onLeft = { onLeft() },
-                onRight = { onRight() },
-                onCenter = { onCenter() },
-                onSoftLeft = { onSoftLeft() },
-                onSoftRight = { onSoftRight() },
-                onCall = {
-                    when {
-                        isRinging -> { haptics.thud(); CallManager.answer() }
-                        view == RazrView.IN_CALL -> CallManager.hold(!isOnHold)
-                        locked -> { view = RazrView.UNLOCK; unlockEntry = ""; unlockError = null }
-                        else -> startCall(dialBuffer, permLauncher, roleLauncher)
-                    }
-                },
-                onEnd = {
-                    when {
-                        isRinging -> { haptics.thud(); CallManager.reject() }
-                        view == RazrView.IN_CALL -> { CallManager.hangUp(); goHome() }
-                        locked -> { view = RazrView.STANDBY; unlockEntry = "" }
-                        else -> { tonePlayer.playBusy(); dialBuffer = ""; goHome() }
-                    }
-                },
-                onGlobe = {
-                    if (locked) { view = RazrView.UNLOCK; unlockEntry = "" } else openBrowser()
-                },
-                onEnvelope = {
-                    tonePlayer.playRazrChirp()
-                    if (locked) { view = RazrView.UNLOCK; unlockEntry = ""; unlockError = null }
-                    else { view = RazrView.INBOX; listIndex = 0 }
-                },
-                onVoice = {
-                    tonePlayer.playRazrChirp()
-                    toast = "VOICE COMMANDS"
-                    goHome()
-                },
-                onKey = { handleKey(it) },
-            )
-      } else {
-        // Flip closed: the inner panel is gone entirely. Only the lower shell
-        // (the outer face) remains, carrying the wallpaper, the clock, and any
-        // notification or message waiting for the user.
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            RazrCoverShell(
-                palette = palette,
-                modifier = Modifier.fillMaxSize(),
-                onOpen = {
-                    haptics.thud()
-                    flapOpen = true
-                    tonePlayer.playRazrChirp()
-                },
+            // ---- Lower half ----------------------------------------------------
+            // On the real handset the keypad and the cover display sit on
+            // opposite faces of the same slab, so they share one box and cross
+            // fade as the flip turns over rather than swapping boxes.
+            // Sized by whichever face is showing: the keypad declares an explicit
+            // height, the cover wraps its own. A fixed height here clipped the
+            // medallion and grille off the closed shell, because the cover face
+            // is a little taller than the deck.
+            Box(
+                Modifier
+                    .width(fittedWidth)
+                    .wrapContentSize(),
             ) {
-                Box(Modifier.fillMaxSize()) {
-                    when {
-                        locked -> RazrCoverLocked(
-                            palette = palette,
-                            onUnlock = {
-                                haptics.thud()
-                                requestSystemUnlock()
-                            },
-                        )
+                Box(
+                    Modifier
+                        .align(Alignment.Center)
+                        .graphicsLayer { alpha = flip.coerceIn(0f, 1f) },
+                ) {
+                        RazrKeypad(
+                    palette = palette,
+                    modifier = Modifier.width(fittedWidth).height(keypadHeight),
+                    haptics = haptics,
+                    onUp = { onUp() },
+                    onDown = { onDown() },
+                    onLeft = { onLeft() },
+                    onRight = { onRight() },
+                    onCenter = { onCenter() },
+                    onSoftLeft = { onSoftLeft() },
+                    onSoftRight = { onSoftRight() },
+                    onCall = {
+                        when {
+                            isRinging -> { haptics.thud(); CallManager.answer() }
+                            view == RazrView.IN_CALL -> CallManager.hold(!isOnHold)
+                            locked -> { view = RazrView.UNLOCK; unlockEntry = ""; unlockError = null }
+                            else -> startCall(dialBuffer, permLauncher, roleLauncher)
+                        }
+                    },
+                    onEnd = {
+                        when {
+                            isRinging -> { haptics.thud(); CallManager.reject() }
+                            view == RazrView.IN_CALL -> { CallManager.hangUp(); goHome() }
+                            locked -> { view = RazrView.STANDBY; unlockEntry = "" }
+                            else -> { tonePlayer.playBusy(); dialBuffer = ""; goHome() }
+                        }
+                    },
+                    onGlobe = {
+                        if (locked) { view = RazrView.UNLOCK; unlockEntry = "" } else openBrowser()
+                    },
+                    onEnvelope = {
+                        tonePlayer.playRazrChirp()
+                        if (locked) { view = RazrView.UNLOCK; unlockEntry = ""; unlockError = null }
+                        else { view = RazrView.INBOX; listIndex = 0 }
+                    },
+                    onVoice = {
+                        tonePlayer.playRazrChirp()
+                        toast = "VOICE COMMANDS"
+                        goHome()
+                    },
+                    onKey = { handleKey(it) },
+                )
+                }
 
-                        else -> RazrCoverPanel(
-                            palette = palette,
-                            wallpaperRes = wallpaper,
-                            time = clockText,
-                            amPm = amPm,
-                            date = dateText,
-                            alert = intercepted?.let {
-                                if (it.headline.isMessage) {
-                                    if (it.count == 1) "1 NEW MESSAGE" else "${it.count} NEW MESSAGES"
-                                } else {
-                                    if (it.count == 1) "1 NEW ALERT" else "${it.count} NEW ALERTS"
-                                }
-                            },
-                            unread = unread,
-                            missedCalls = missedCalls,
-                        )
+                Box(
+                    Modifier
+                        .align(Alignment.Center)
+                        .wrapContentSize()
+                        .graphicsLayer {
+                            transformOrigin = TransformOrigin(0.5f, 0f)
+                            rotationX = flip * 104f
+                            cameraDistance = 16f * density
+                            alpha = (1f - flip).coerceIn(0f, 1f)
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                        RazrCoverShell(
+                    palette = palette,
+                    shellWidth = fittedWidth,
+                    modifier = Modifier.fillMaxWidth(),
+                    onOpen = { setFlap(true) },
+                ) {
+                    Box(Modifier.fillMaxSize()) {
+                        when {
+                            locked -> RazrCoverLocked(
+                                palette = palette,
+                                onUnlock = {
+                                    haptics.thud()
+                                    requestSystemUnlock()
+                                },
+                            )
+
+                            else -> RazrCoverPanel(
+                                palette = palette,
+                                wallpaperRes = wallpaper,
+                                time = clockText,
+                                amPm = amPm,
+                                date = dateText,
+                                alert = intercepted?.let {
+                                    if (it.headline.isMessage) {
+                                        if (it.count == 1) "1 NEW MESSAGE" else "${it.count} NEW MESSAGES"
+                                    } else {
+                                        if (it.count == 1) "1 NEW ALERT" else "${it.count} NEW ALERTS"
+                                    }
+                                },
+                                unread = unread,
+                                missedCalls = missedCalls,
+                            )
+                        }
                     }
                 }
             }
+          }
         }
-      }
-    }
-}
+            }
 
+}
 /** Every internal-panel view, driven purely by the [RazrView] state. */
 @Composable
 private fun ActiveView(
@@ -1119,3 +1208,5 @@ private fun titleFor(view: RazrView, isRinging: Boolean, currentGameTitle: Strin
     view == RazrView.CALCULATOR -> "Calculator"
     else -> "RAZR V3i"
 }
+
+
