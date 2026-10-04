@@ -41,7 +41,7 @@ fun RazrStatusStrip(
     Box(
         modifier
             .fillMaxWidth()
-            .height(11.dp)
+            .height(15.dp)
             .background(Brush.verticalGradient(listOf(palette.statusTop, palette.statusLow)))
             .padding(horizontal = 3.dp),
         contentAlignment = Alignment.CenterStart,
@@ -57,14 +57,14 @@ fun RazrTitleBar(
     Box(
         modifier
             .fillMaxWidth()
-            .height(15.dp)
+            .height(22.dp)
             .background(Brush.verticalGradient(listOf(palette.titleTop, palette.titleLow))),
         contentAlignment = Alignment.Center,
     ) {
         Text2(
             text = title,
             color = palette.titleInk,
-            size = 11.sp,
+            size = 15.9.sp,
             weight = FontWeight.Bold,
         )
     }
@@ -81,7 +81,7 @@ fun RazrSoftKeyBar(
     Row(
         modifier
             .fillMaxWidth()
-            .height(15.dp)
+            .height(22.dp)
             .background(Brush.verticalGradient(listOf(palette.softTop, palette.softLow)))
             .padding(horizontal = 5.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -100,7 +100,7 @@ private fun SoftLabel(color: Color, text: String, modifier: Modifier, align: Ali
         Text2(
             text = text,
             color = color,
-            size = 10.sp,
+            size = 14.5.sp,
             weight = FontWeight.Bold,
             align = align,
         )

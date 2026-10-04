@@ -209,14 +209,23 @@ fun RazrCoverShell(
                 drawCircle(color = Color(0xFF3A5C8C), radius = size.minDimension / 4.4f)
             }
         }
+        Spacer(Modifier.height(5.dp))
+
+        Text(
+            text = "MOTOROLA",
+            color = palette.chassisHighlight,
+            fontSize = 7.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.5.sp,
+        )
         Spacer(Modifier.height(6.dp))
 
-        // Outer display. Expands to fill the available height so the wallpaper,
-        // clock, notifications and messages all fit while the flip is closed.
+        // The true 96 x 80 external CSTN panel — landscape and deliberately
+        // small, exactly as it sits on the outer face of the closed handset.
+        // It is NOT stretched to fill the shell.
         Box(
             Modifier
                 .fillMaxWidth()
-                .weight(1f)
                 .clip(RoundedCornerShape(3.dp))
                 .background(palette.bezel)
                 .border(1.dp, palette.bezelEdge, RoundedCornerShape(3.dp))
@@ -224,14 +233,11 @@ fun RazrCoverShell(
             contentAlignment = Alignment.Center
         ) { content() }
 
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = "MOTOROLA",
-            color = palette.chassisHighlight,
-            fontSize = 6.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 1.5.sp,
-        )
+        Spacer(Modifier.height(7.dp))
+
+        // Batwing medallion below the cover display, as on the physical shell.
+        Medallion(palette, 20.dp)
+        Spacer(Modifier.height(7.dp))
         Spacer(Modifier.height(6.dp))
         SpeakerGrille(palette)
     }

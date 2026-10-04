@@ -163,6 +163,9 @@ fun RazrV3iScreen(
         }
     }
     val clockText = remember(now) { SimpleDateFormat("HH:mm", Locale.ROOT).format(Date(now)) }
+    val amPm = remember(now) {
+        SimpleDateFormat("a", Locale.ROOT).format(Date(now)).uppercase(Locale.ROOT)
+    }
     val dateText = remember(now) { SimpleDateFormat("dd-MMM-yy", Locale.ROOT).format(Date(now)) }
 
     // ---- Telephony -------------------------------------------------------------
@@ -719,6 +722,8 @@ fun RazrV3iScreen(
                                 listIndex = listIndex,
                                 dialBuffer = dialBuffer,
                                 clockText = clockText,
+
+                                amPm = amPm,
                                 dateText = dateText,
                                 callSeconds = callSeconds,
                                 callStatus = when {
@@ -845,10 +850,16 @@ fun RazrV3iScreen(
                             palette = palette,
                             wallpaperRes = wallpaper,
                             time = clockText,
+                            amPm = amPm,
                             date = dateText,
-                            intercepted = intercepted,
+                            alert = intercepted?.let {
+                                if (it.headline.isMessage) {
+                                    if (it.count == 1) "1 NEW MESSAGE" else "${it.count} NEW MESSAGES"
+                                } else {
+                                    if (it.count == 1) "1 NEW ALERT" else "${it.count} NEW ALERTS"
+                                }
+                            },
                             unread = unread,
-                            messages = messages,
                             missedCalls = missedCalls,
                         )
                     }
@@ -873,6 +884,8 @@ private fun ActiveView(
     listIndex: Int,
     dialBuffer: String,
     clockText: String,
+
+    amPm: String,
     dateText: String,
     callSeconds: Int,
     callStatus: String,
@@ -894,7 +907,7 @@ private fun ActiveView(
             palette = palette,
             wallpaperRes = wallpaperRes,
             time = clockText,
-            amPm = "",
+            amPm = amPm,
             date = dateText,
         )
 
@@ -978,7 +991,7 @@ private fun ActiveView(
             palette = palette,
             wallpaperRes = wallpaperRes,
             time = clockText,
-            amPm = "",
+            amPm = amPm,
             date = dateText,
         )
     }

@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -118,44 +119,46 @@ fun RazrKeypad(
                 }
             }
 
+
             // ---- Hit targets ---------------------------------------------------
-            // Rocker directions sit just inside the ring.
-            hit(w * 0.155f, h * 0.135f, w * 0.19f, h * 0.10f) { haptics.click(); onUp() }
-            hit(w * 0.155f, h * 0.345f, w * 0.19f, h * 0.10f) { haptics.click(); onDown() }
-            hit(w * 0.215f, h * 0.240f, w * 0.10f, h * 0.20f) { haptics.click(); onLeft() }
-            hit(w * 0.595f, h * 0.240f, w * 0.10f, h * 0.20f) { haptics.click(); onRight() }
-            hit(w * 0.405f, h * 0.205f, w * 0.19f, h * 0.16f) { haptics.thud(); onCenter() }
+            // Everything lives in one overlay drawn last, and the rectangles form a
+            // strict partition of the deck so no key can shadow another.
+            Box(Modifier.fillMaxSize()) {
+                // D-pad block, x 0.22..0.78 / y 0.10..0.44
+                hit(w, h, 0.220f, 0.100f, 0.560f, 0.110f) { haptics.click(); onUp() }
+                hit(w, h, 0.220f, 0.330f, 0.560f, 0.110f) { haptics.click(); onDown() }
+                hit(w, h, 0.220f, 0.210f, 0.160f, 0.120f) { haptics.click(); onLeft() }
+                hit(w, h, 0.620f, 0.210f, 0.160f, 0.120f) { haptics.click(); onRight() }
+                hit(w, h, 0.380f, 0.210f, 0.240f, 0.120f) { haptics.thud(); onCenter() }
 
-            // Soft keys, outermost in the top corners.
-            hit(w * 0.060f, h * 0.160f, w * 0.150f, h * 0.090f) { haptics.click(); onSoftLeft() }
-            hit(w * 0.790f, h * 0.160f, w * 0.150f, h * 0.090f) { haptics.click(); onSoftRight() }
+                // Voice key, top centre.
+                hit(w, h, 0.420f, 0.015f, 0.160f, 0.080f) { haptics.click(); onVoice() }
 
-            // Voice key, top centre.
-            hit(w * 0.455f, h * 0.030f, w * 0.090f, h * 0.060f) { haptics.click(); onVoice() }
+                // Left flank: soft key, globe, green send. Right flank mirrored.
+                hit(w, h, 0.050f, 0.115f, 0.150f, 0.105f) { haptics.click(); onSoftLeft() }
+                hit(w, h, 0.050f, 0.235f, 0.150f, 0.095f) { haptics.click(); onGlobe() }
+                hit(w, h, 0.050f, 0.345f, 0.150f, 0.095f) { haptics.thud(); onCall() }
 
-            // Dedicated function keys.
-            hit(w * 0.060f, h * 0.255f, w * 0.150f, h * 0.090f) { haptics.click(); onGlobe() }
-            hit(w * 0.790f, h * 0.255f, w * 0.150f, h * 0.090f) { haptics.click(); onEnvelope() }
+                hit(w, h, 0.800f, 0.115f, 0.150f, 0.105f) { haptics.click(); onSoftRight() }
+                hit(w, h, 0.800f, 0.235f, 0.150f, 0.095f) { haptics.click(); onEnvelope() }
+                hit(w, h, 0.800f, 0.345f, 0.150f, 0.095f) { haptics.thud(); onEnd() }
 
-            // Green send / red power, low on the flanks.
-            hit(w * 0.060f, h * 0.335f, w * 0.150f, h * 0.090f) { haptics.thud(); onCall() }
-            hit(w * 0.790f, h * 0.335f, w * 0.150f, h * 0.090f) { haptics.thud(); onEnd() }
-
-            // 12 keys.
-            RazrKeypadLayout.rows.forEachIndexed { rowIndex, row ->
-                val y = keyRowTop(rowIndex)
-                row.forEachIndexed { colIndex, key ->
-                    hit(
-                        w * keyChannelStart(colIndex),
-                        h * y,
-                        w * channelWidth(colIndex),
-                        h * 0.112f,
-                    ) {
-                        haptics.click()
-                        onKey(key.main[0])
+                // 12 keys.
+                RazrKeypadLayout.rows.forEachIndexed { rowIndex, row ->
+                    val top = 0.455f + rowIndex * 0.1325f
+                    row.forEachIndexed { colIndex, key ->
+                        hit(
+                            w, h,
+                            keyChannelStart(colIndex), top,
+                            channelWidth(colIndex), 0.1325f,
+                        ) {
+                            haptics.click()
+                            onKey(key.main[0])
+                        }
                     }
                 }
             }
+
         }
     }
 }
@@ -177,24 +180,29 @@ private fun channelWidth(col: Int): Float = when (col) {
 }
 
 /** Top edge of each key row. */
-private fun keyRowTop(row: Int): Float = 0.455f + row * 0.1125f
+private fun keyRowTop(row: Int): Float = 0.455f + row * 0.1325f
 
+/**
+ * Places a transparent tap target at fractional deck coordinates.
+ *
+ * Uses explicit fractions rather than pixel offsets so the targets scale with
+ * the deck and never drift out of sync with the painted artwork.
+ */
 @Composable
-private fun Modifier.hitOffset(x: Dp, y: Dp) = this.offset(x = x, y = y)
-
-@Composable
-private fun androidx.compose.foundation.layout.BoxScope.hit(
-    x: Dp,
-    y: Dp,
-    hitW: Dp,
-    hitH: Dp,
+private fun BoxScope.hit(
+    w: Dp,
+    h: Dp,
+    xFrac: Float,
+    yFrac: Float,
+    wFrac: Float,
+    hFrac: Float,
     onClick: () -> Unit,
 ) {
     Box(
         Modifier
             .align(Alignment.TopStart)
-            .hitOffset(x, y)
-            .size(hitW, hitH)
+            .offset(x = w * xFrac, y = h * yFrac)
+            .size(w * wFrac, h * hFrac)
             .clickable(onClick = onClick)
     )
 }
@@ -203,7 +211,10 @@ private fun androidx.compose.foundation.layout.BoxScope.hit(
 
 /**
  * One key's legend: a large digit with a small, raised letter group beside it,
- * mirrored to the other side for the right-hand column.
+ * mirrored to the other side for the right-hand column of each numeric row.
+ *
+ * Letters sit raised and small against the large digit, exactly as etched on the
+ * handset, so both stay legible at 176x220.
  */
 @Composable
 private fun KeyLegend(
@@ -215,7 +226,7 @@ private fun KeyLegend(
     Box(modifier) {
         val letters = if (key.letters.isNotEmpty()) key.letters else key.sub
         when {
-            // Letters to the left of the digit (column 3 and "#").
+            // Letters to the LEFT of the digit (column 3 and "#").
             key.lettersFirst && letters.isNotEmpty() -> Row(
                 Modifier.align(Alignment.BottomStart).padding(bottom = 1.dp),
                 verticalAlignment = Alignment.Bottom,
@@ -223,42 +234,32 @@ private fun KeyLegend(
                 Text(
                     text = letters,
                     color = dim,
-                    fontSize = 7.sp,
+                    fontSize = 10.sp,
                     maxLines = 1,
-                    modifier = Modifier.padding(bottom = 5.dp),
+                    modifier = Modifier.padding(bottom = 7.dp),
                 )
-                Text(
-                    text = key.main,
-                    color = tint,
-                    fontSize = 17.sp,
-                    maxLines = 1,
-                )
+                Text(text = key.main, color = tint, fontSize = 24.sp, maxLines = 1)
             }
 
-            // Letters to the right of the digit (columns 1 and 2).
+            // Letters to the RIGHT of the digit (columns 1 and 2).
             letters.isNotEmpty() -> Row(
                 Modifier.align(Alignment.BottomStart).padding(bottom = 1.dp),
                 verticalAlignment = Alignment.Bottom,
             ) {
-                Text(
-                    text = key.main,
-                    color = tint,
-                    fontSize = 17.sp,
-                    maxLines = 1,
-                )
+                Text(text = key.main, color = tint, fontSize = 24.sp, maxLines = 1)
                 Text(
                     text = letters,
                     color = dim,
-                    fontSize = 7.sp,
+                    fontSize = 10.sp,
                     maxLines = 1,
-                    modifier = Modifier.padding(bottom = 5.dp),
+                    modifier = Modifier.padding(bottom = 7.dp),
                 )
             }
 
             else -> Text(
                 text = key.main,
                 color = tint,
-                fontSize = 17.sp,
+                fontSize = 24.sp,
                 maxLines = 1,
                 modifier = Modifier.align(Alignment.BottomStart).padding(bottom = 1.dp),
             )

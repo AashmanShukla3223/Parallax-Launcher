@@ -107,14 +107,14 @@ fun RazrStatusGlyphs(
                 )
             }
         }
-        T("2G", ink, 6.sp, FontWeight.Bold)
-        T("▧", ink, 6.sp)
+        T("2G", ink, 8.7.sp, FontWeight.Bold)
+        T("▧", ink, 8.7.sp)
         if (unreadMessages > 0) {
-            T("✉", palette.badgeInk, 7.sp, FontWeight.Bold)
-            T(unreadMessages.toString(), palette.badgeInk, 6.sp, FontWeight.Bold)
+            T("✉", palette.badgeInk, 10.2.sp, FontWeight.Bold)
+            T(unreadMessages.toString(), palette.badgeInk, 8.7.sp, FontWeight.Bold)
         }
         Spacer(Modifier.weight(1f))
-        T(ringStyleName.take(3).uppercase(Locale.ROOT), ink, 5.5.sp, FontWeight.Bold)
+        T(ringStyleName.take(3).uppercase(Locale.ROOT), ink, 8.sp, FontWeight.Bold)
         // Battery: vertical segments in a capsule.
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
@@ -186,8 +186,8 @@ fun RazrHomeScreen(
         ) {
             // Operator and date.
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                T("MOTOROLA", palette.titleInk, 7.sp, FontWeight.Bold)
-                T(date.uppercase(Locale.ROOT), palette.titleInk, 7.sp, FontWeight.Bold, TextAlign.End)
+                T("MOTOROLA", palette.titleInk, 10.2.sp, FontWeight.Bold)
+                T(date.uppercase(Locale.ROOT), palette.titleInk, 10.2.sp, FontWeight.Bold, TextAlign.End)
             }
 
             // Clock, low and large as on the original.
@@ -196,9 +196,9 @@ fun RazrHomeScreen(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.Bottom,
             ) {
-                T(time, palette.titleInk, 34.sp, FontWeight.Bold)
+                T(time, palette.titleInk, 49.3.sp, FontWeight.Bold)
                 if (amPm.isNotBlank()) {
-                    T(amPm, palette.titleInk, 9.sp, FontWeight.Bold, modifier = Modifier.padding(bottom = 4.dp, start = 2.dp))
+                    T(amPm, palette.titleInk, 13.sp, FontWeight.Bold, modifier = Modifier.padding(bottom = 4.dp, start = 2.dp))
                 }
             }
 
@@ -311,7 +311,7 @@ private fun IconCell(
         T(
             text = item.title,
             color = if (selected) palette.badgeInk else palette.ink,
-            size = 6.5.sp,
+            size = 9.4.sp,
             weight = if (selected) FontWeight.Bold else FontWeight.Normal,
             align = TextAlign.Center,
             maxLines = 2,
@@ -346,7 +346,7 @@ fun <T> RazrListScreen(
         RazrTitleBar(palette, title)
         if (entries.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                T(emptyText, palette.inkDim, 9.sp, FontWeight.Normal, TextAlign.Center)
+                T(emptyText, palette.inkDim, 13.sp, FontWeight.Normal, TextAlign.Center)
             }
             return@Column
         }
@@ -368,19 +368,19 @@ fun <T> RazrListScreen(
                     T(
                         text = label,
                         color = if (selected) palette.selectInk else palette.ink,
-                        size = 10.sp,
+                        size = 14.5.sp,
                         weight = if (selected) FontWeight.Bold else FontWeight.Normal,
                         maxLines = 1,
                         modifier = Modifier.weight(1f),
                     )
                     secondary(item)?.let {
-                        T(it, if (selected) palette.selectInk else palette.inkDim, 8.sp)
+                        T(it, if (selected) palette.selectInk else palette.inkDim, 11.6.sp)
                     }
                     marker(item)?.let {
-                        T(it, if (selected) palette.selectInk else palette.alert, 9.sp, FontWeight.Bold)
+                        T(it, if (selected) palette.selectInk else palette.alert, 13.sp, FontWeight.Bold)
                     }
                     Spacer(Modifier.width(4.dp))
-                    T("›", if (selected) palette.selectInk else palette.inkDim, 11.sp, FontWeight.Bold)
+                    T("›", if (selected) palette.selectInk else palette.inkDim, 15.9.sp, FontWeight.Bold)
                 }
             }
         }
@@ -403,11 +403,11 @@ fun RazrDialingScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        T("Enter number", palette.inkDim, 9.sp, FontWeight.Normal)
+        T("Enter number", palette.inkDim, 13.sp, FontWeight.Normal)
         T(
             buffer.ifEmpty { "_" },
             palette.ink,
-            26.sp,
+            37.7.sp,
             FontWeight.Bold,
             TextAlign.Center,
         )
@@ -415,11 +415,11 @@ fun RazrDialingScreen(
             T(
                 notice ?: "Send to call",
                 if (notice == null) palette.selectLow else palette.alert,
-                9.sp,
+                13.sp,
                 FontWeight.Bold,
                 TextAlign.Center,
             )
-            T("Clear erases the last digit", palette.inkDim, 8.sp)
+            T("Clear erases the last digit", palette.inkDim, 11.6.sp)
         }
     }
 }
@@ -453,23 +453,23 @@ fun RazrInCallScreen(
                 .padding(vertical = 2.dp),
             contentAlignment = Alignment.Center,
         ) {
-            T(status, palette.selectInk, 9.sp, FontWeight.Bold)
+            T(status, palette.selectInk, 13.sp, FontWeight.Bold)
         }
         Column(
             Modifier.weight(1f).padding(horizontal = 7.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            T(number, palette.ink, 12.sp, FontWeight.Bold, TextAlign.Center)
-            T(timer, palette.selectLow, 26.sp, FontWeight.Bold, TextAlign.Center)
+            T(number, palette.ink, 17.4.sp, FontWeight.Bold, TextAlign.Center)
+            T(timer, palette.selectLow, 37.7.sp, FontWeight.Bold, TextAlign.Center)
             Spacer(Modifier.height(3.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                T(perSecondLabel, palette.inkDim, 7.sp)
-                T(secondsChargedLabel, palette.ink, 7.sp, FontWeight.Bold)
+                T(perSecondLabel, palette.inkDim, 10.2.sp)
+                T(secondsChargedLabel, palette.ink, 10.2.sp, FontWeight.Bold)
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                T(perMinuteLabel, palette.inkDim, 7.sp)
-                T(minutesChargedLabel, palette.ink, 7.sp, FontWeight.Bold)
+                T(perMinuteLabel, palette.inkDim, 10.2.sp)
+                T(minutesChargedLabel, palette.ink, 10.2.sp, FontWeight.Bold)
             }
             Spacer(Modifier.height(2.dp))
             Row(
@@ -480,8 +480,8 @@ fun RazrInCallScreen(
                     .padding(horizontal = 4.dp, vertical = 2.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                T("Total", palette.ink, 8.sp, FontWeight.Bold)
-                T(totalLabel, palette.selectLow, 9.sp, FontWeight.Bold)
+                T("Total", palette.ink, 11.6.sp, FontWeight.Bold)
+                T(totalLabel, palette.selectLow, 13.sp, FontWeight.Bold)
             }
             Spacer(Modifier.height(5.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -506,7 +506,7 @@ private fun Pill(palette: RazrPalette, label: String, on: Boolean) {
         T(
             label,
             if (on) palette.selectInk else palette.inkDim,
-            7.sp,
+            10.2.sp,
             FontWeight.Bold,
         )
     }
@@ -527,11 +527,11 @@ fun RazrIncomingCallScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        T("Incoming call", palette.alert, 12.sp, FontWeight.Bold, TextAlign.Center)
-        T(number, palette.ink, 17.sp, FontWeight.Bold, TextAlign.Center)
+        T("Incoming call", palette.alert, 17.4.sp, FontWeight.Bold, TextAlign.Center)
+        T(number, palette.ink, 24.6.sp, FontWeight.Bold, TextAlign.Center)
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            T("Send answers", palette.selectLow, 9.sp, FontWeight.Bold, TextAlign.Center)
-            T("Power declines", palette.alert, 9.sp, FontWeight.Bold, TextAlign.Center)
+            T("Send answers", palette.selectLow, 13.sp, FontWeight.Bold, TextAlign.Center)
+            T("Power declines", palette.alert, 13.sp, FontWeight.Bold, TextAlign.Center)
         }
     }
 }
@@ -552,20 +552,20 @@ fun RazrUnlockScreen(
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            T("MOTOROLA", palette.inkDim, 8.sp, FontWeight.Normal)
-            T("RAZR V3i", palette.ink, 15.sp, FontWeight.Bold)
+            T("MOTOROLA", palette.inkDim, 11.6.sp, FontWeight.Normal)
+            T("RAZR V3i", palette.ink, 21.8.sp, FontWeight.Bold)
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            T("Phone locked", palette.alert, 11.sp, FontWeight.Bold, TextAlign.Center)
+            T("Phone locked", palette.alert, 15.9.sp, FontWeight.Bold, TextAlign.Center)
             T(
                 message ?: "Press * or tap to unlock",
                 palette.inkDim,
-                8.sp,
+                11.6.sp,
                 FontWeight.Normal,
                 TextAlign.Center,
             )
         }
-        T("Emergency calls only", palette.inkDim, 7.sp, FontWeight.Normal, TextAlign.Center)
+        T("Emergency calls only", palette.inkDim, 10.2.sp, FontWeight.Normal, TextAlign.Center)
     }
 }
 
@@ -601,11 +601,11 @@ fun RazrRingStyleScreen(
                     T(
                         name,
                         if (selected) palette.selectInk else palette.ink,
-                        10.sp,
+                        14.5.sp,
                         if (selected) FontWeight.Bold else FontWeight.Normal,
                         modifier = Modifier.weight(1f),
                     )
-                    T("›", if (selected) palette.selectInk else palette.inkDim, 11.sp, FontWeight.Bold)
+                    T("›", if (selected) palette.selectInk else palette.inkDim, 15.9.sp, FontWeight.Bold)
                 }
             }
         }
@@ -652,11 +652,11 @@ fun RazrThemeScreen(
                     T(
                         name,
                         if (selected) palette.selectInk else palette.ink,
-                        10.sp,
+                        14.5.sp,
                         if (selected) FontWeight.Bold else FontWeight.Normal,
                         modifier = Modifier.weight(1f),
                     )
-                    T("›", if (selected) palette.selectInk else palette.inkDim, 11.sp, FontWeight.Bold)
+                    T("›", if (selected) palette.selectInk else palette.inkDim, 15.9.sp, FontWeight.Bold)
                 }
             }
         }
@@ -684,7 +684,7 @@ fun RazrInboxList(
                 T(
                     "No messages\n\nEnable notification access\nin Android settings",
                     palette.inkDim,
-                    8.sp,
+                    11.6.sp,
                     FontWeight.Normal,
                     TextAlign.Center,
                 )
@@ -722,21 +722,21 @@ fun RazrInboxList(
                         T(
                             item.sender,
                             if (selected) palette.selectInk else palette.ink,
-                            9.sp,
+                            13.sp,
                             FontWeight.Bold,
                             modifier = Modifier.weight(1f),
                         )
                         T(
                             timeFmt.format(Date(item.postTime)),
                             if (selected) palette.selectInk else palette.inkDim,
-                            7.sp,
+                            10.2.sp,
                         )
                     }
                     if (item.text.isNotBlank()) {
                         T(
                             item.text,
                             if (selected) palette.selectInk else palette.inkDim,
-                            8.sp,
+                            11.6.sp,
                             maxLines = 2,
                             modifier = Modifier.padding(start = 15.dp),
                         )
@@ -750,18 +750,20 @@ fun RazrInboxList(
 /**
  * Outer-face panel shown while the flip is closed.
  *
- * With the inner panel gone this lower shell carries everything still worth
- * seeing: the wallpaper, the clock, notifications and message previews.
+ * This renders inside the true 96 x 80 cover display, so it has to be terse:
+ * the wallpaper, a large clock, and a single-line alert summary. Anything
+ * longer is unreadable at that size, so the message list lives on the inner
+ * panel instead.
  */
 @Composable
 fun RazrCoverPanel(
     palette: RazrPalette,
     wallpaperRes: Int,
     time: String,
+    amPm: String,
     date: String,
-    intercepted: Intercepted?,
+    alert: String?,
     unread: Int,
-    messages: List<Headline>,
     missedCalls: Int,
     modifier: Modifier = Modifier,
 ) {
@@ -777,119 +779,65 @@ fun RazrCoverPanel(
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        0f to Color.Black.copy(alpha = 0.28f),
-                        0.45f to Color.Black.copy(alpha = 0.12f),
-                        1f to Color.Black.copy(alpha = 0.40f),
+                        0f to Color.Black.copy(alpha = 0.15f),
+                        1f to Color.Black.copy(alpha = 0.45f),
                     )
                 )
         )
         Column(
             Modifier
                 .fillMaxSize()
-                .background(palette.field.copy(alpha = 0.90f))
-                .padding(6.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+                .padding(horizontal = 3.dp, vertical = 2.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                T("MOTOROLA", palette.ink, 7.sp, FontWeight.Bold)
-                T(date.uppercase(Locale.ROOT), palette.inkDim, 7.sp, FontWeight.Bold, TextAlign.End)
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .background(palette.statusLow.copy(alpha = 0.85f))
+                    .padding(horizontal = 2.dp, vertical = 1.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                T("2G", Color.White, 8.7.sp, FontWeight.Bold)
+                if (unread > 0) T("✉$unread", Color(0xFFFFD34D), 8.7.sp, FontWeight.Bold)
+                T("▮", Color.White, 8.7.sp, FontWeight.Bold)
             }
 
-            T(time, palette.ink, 30.sp, FontWeight.Bold, TextAlign.Center, modifier = Modifier.fillMaxWidth())
-
-            intercepted?.let { current ->
-                val isMessage = current.headline.isMessage
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(3.dp))
-                        .background(
-                            Brush.horizontalGradient(listOf(palette.selectTop, palette.selectLow))
-                        )
-                        .padding(horizontal = 5.dp, vertical = 4.dp)
-                ) {
-                    T(
-                        text = when {
-                            isMessage && current.count == 1 -> "1 NEW MESSAGE RECEIVED"
-                            isMessage -> "${current.count} NEW MESSAGES RECEIVED"
-                            current.count == 1 -> "1 NEW NOTIFICATION"
-                            else -> "${current.count} NEW NOTIFICATIONS"
-                        },
-                        color = palette.selectInk,
-                        size = 9.sp,
-                        weight = FontWeight.Bold,
-                        maxLines = 2,
-                    )
-                    T(current.headline.sender, palette.selectInk, 8.sp, FontWeight.Bold)
-                    if (current.headline.text.isNotBlank()) {
-                        T(current.headline.text, palette.selectInk, 7.sp, maxLines = 2)
-                    }
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                T(time, Color.White, 27.6.sp, FontWeight.Bold)
+                if (amPm.isNotBlank()) {
+                    T(amPm, Color.White, 10.2.sp, FontWeight.Bold, modifier = Modifier.padding(bottom = 2.dp, start = 1.dp))
                 }
             }
 
-            if (messages.isNotEmpty()) {
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .clip(RoundedCornerShape(3.dp))
-                        .background(palette.fieldAlt)
-                        .padding(5.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    T("MESSAGES", palette.ink, 8.sp, FontWeight.Bold)
-                    messages.take(5).forEach { msg ->
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-                            Box(
-                                Modifier
-                                    .size(11.dp)
-                                    .clip(RoundedCornerShape(1.dp))
-                                    .background(RazrIconTints.Blue),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                RazrIconGlyph(RazrIcon.MESSAGES, Color.White, Modifier.size(8.dp))
-                            }
-                            Spacer(Modifier.width(4.dp))
-                            Column(Modifier.weight(1f)) {
-                                T(msg.sender, palette.ink, 8.sp, FontWeight.Bold)
-                                T(msg.text.take(40), palette.inkDim, 7.sp, maxLines = 2)
-                            }
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(
+                        when {
+                            alert != null -> Brush.horizontalGradient(listOf(palette.selectTop, palette.selectLow))
+                            missedCalls > 0 -> SolidColor(palette.alert)
+                            else -> SolidColor(Color.Black.copy(alpha = 0.45f))
                         }
-                    }
-                }
-            } else {
-                Spacer(Modifier.weight(1f))
-            }
-
-            if (missedCalls > 0) {
+                    )
+                    .padding(horizontal = 2.dp, vertical = 1.dp),
+            ) {
                 T(
-                    "$missedCalls MISSED CALLS",
-                    palette.alert,
-                    9.sp,
+                    alert
+                        ?: if (missedCalls > 0) "$missedCalls MISSED CALLS"
+                        else date.uppercase(Locale.ROOT),
+                    if (alert != null || missedCalls > 0) Color.White else Color.White.copy(alpha = 0.85f),
+                    9.4.sp,
                     FontWeight.Bold,
                     TextAlign.Center,
+                    maxLines = 1,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-            if (unread > 0) {
-                T(
-                    "$unread UNREAD",
-                    palette.alert,
-                    8.sp,
-                    FontWeight.Bold,
-                    TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-
-            T(
-                "Tap to open the flip",
-                palette.inkDim,
-                8.sp,
-                FontWeight.Bold,
-                TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
         }
     }
 }
@@ -912,16 +860,16 @@ fun RazrCoverLocked(
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            T("MOTOROLA", palette.inkDim, 8.sp, FontWeight.Normal)
-            T("RAZR V3i", palette.ink, 15.sp, FontWeight.Bold)
+            T("MOTOROLA", palette.inkDim, 11.6.sp, FontWeight.Normal)
+            T("RAZR V3i", palette.ink, 21.8.sp, FontWeight.Bold)
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            T("PHONE LOCKED", palette.alert, 11.sp, FontWeight.Bold, TextAlign.Center)
-            T("UNLOCK MODE REQUIRED", palette.ink, 8.sp, FontWeight.Bold, TextAlign.Center)
+            T("PHONE LOCKED", palette.alert, 15.9.sp, FontWeight.Bold, TextAlign.Center)
+            T("UNLOCK MODE REQUIRED", palette.ink, 11.6.sp, FontWeight.Bold, TextAlign.Center)
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            T("TAP HERE OR PRESS *", palette.selectLow, 8.sp, FontWeight.Bold, TextAlign.Center)
-            T("SWIPE UP AND ENTER YOUR PIN", palette.inkDim, 7.sp, FontWeight.Normal, TextAlign.Center)
+            T("TAP HERE OR PRESS *", palette.selectLow, 11.6.sp, FontWeight.Bold, TextAlign.Center)
+            T("SWIPE UP AND ENTER YOUR PIN", palette.inkDim, 10.2.sp, FontWeight.Normal, TextAlign.Center)
         }
     }
 }
@@ -968,11 +916,11 @@ fun RazrMessageMenu(
                     T(
                         label,
                         if (selected) palette.selectInk else palette.ink,
-                        10.sp,
+                        14.5.sp,
                         if (selected) FontWeight.Bold else FontWeight.Normal,
                         modifier = Modifier.weight(1f),
                     )
-                    T("›", if (selected) palette.selectInk else palette.inkDim, 11.sp, FontWeight.Bold)
+                    T("›", if (selected) palette.selectInk else palette.inkDim, 15.9.sp, FontWeight.Bold)
                 }
             }
         }
@@ -984,8 +932,8 @@ fun RazrMessageMenu(
                 .padding(horizontal = 5.dp, vertical = 3.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            T("In-app alert here", palette.selectLow, 6.5.sp, FontWeight.Bold)
-            T("System alert elsewhere", palette.inkDim, 6.5.sp, FontWeight.Bold, TextAlign.End)
+            T("In-app alert here", palette.selectLow, 9.4.sp, FontWeight.Bold)
+            T("System alert elsewhere", palette.inkDim, 9.4.sp, FontWeight.Bold, TextAlign.End)
         }
     }
 }
@@ -1013,25 +961,25 @@ fun RazrCalculatorPanel(
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                T("Rate", palette.inkDim, 9.sp); T(rateText, palette.ink, 9.sp, FontWeight.Bold)
+                T("Rate", palette.inkDim, 13.sp); T(rateText, palette.ink, 13.sp, FontWeight.Bold)
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                T("Current call", palette.inkDim, 9.sp); T(costText, palette.ink, 9.sp, FontWeight.Bold)
+                T("Current call", palette.inkDim, 13.sp); T(costText, palette.ink, 13.sp, FontWeight.Bold)
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                T("Talk time", palette.inkDim, 9.sp)
+                T("Talk time", palette.inkDim, 13.sp)
                 T(
                     String.format(Locale.ROOT, "%02d:%02d", callSeconds / 60, callSeconds % 60),
                     palette.ink,
-                    9.sp,
+                    13.sp,
                     FontWeight.Bold,
                 )
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                T("Battery", palette.inkDim, 9.sp); T("$batteryPct%", palette.ink, 9.sp, FontWeight.Bold)
+                T("Battery", palette.inkDim, 13.sp); T("$batteryPct%", palette.ink, 13.sp, FontWeight.Bold)
             }
             Spacer(Modifier.weight(1f))
-            T("Tap digits to dial, centre to call", palette.inkDim, 8.sp)
+            T("Tap digits to dial, centre to call", palette.inkDim, 11.6.sp)
         }
     }
 }
@@ -1067,8 +1015,8 @@ fun RazrAboutScreen(palette: RazrPalette, modifier: Modifier = Modifier) {
                 "Standby" to "200 hours",
             ).forEach { (label, value) ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    T(label, palette.inkDim, 8.sp)
-                    T(value, palette.ink, 8.sp, FontWeight.Bold)
+                    T(label, palette.inkDim, 11.6.sp)
+                    T(value, palette.ink, 11.6.sp, FontWeight.Bold)
                 }
             }
         }
@@ -1088,7 +1036,7 @@ fun RazrToast(
             .background(Brush.horizontalGradient(listOf(palette.selectTop, palette.selectLow)))
             .padding(horizontal = 5.dp, vertical = 3.dp)
     ) {
-        T(text, palette.selectInk, 8.sp, FontWeight.Bold, TextAlign.Center, maxLines = 3)
+        T(text, palette.selectInk, 11.6.sp, FontWeight.Bold, TextAlign.Center, maxLines = 3)
     }
 }
 
@@ -1096,7 +1044,7 @@ fun RazrToast(
 @Composable
 fun RazrEmptyState(palette: RazrPalette, text: String, modifier: Modifier = Modifier) {
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        T(text, palette.inkDim, 9.sp, FontWeight.Normal, TextAlign.Center)
+        T(text, palette.inkDim, 13.sp, FontWeight.Normal, TextAlign.Center)
     }
 }
 

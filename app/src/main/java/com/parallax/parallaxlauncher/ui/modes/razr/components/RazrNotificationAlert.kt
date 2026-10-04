@@ -87,7 +87,7 @@ fun RazrNotificationAlert(
                 Text(
                     text = headline,
                     color = palette.selectInk,
-                    fontSize = 9.sp,
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = (-0.1).sp,
                     maxLines = 2,
@@ -97,7 +97,7 @@ fun RazrNotificationAlert(
             Text(
                 text = current.headline.sender,
                 color = palette.selectInk,
-                fontSize = 8.sp,
+                fontSize = 11.6.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
             )
@@ -105,7 +105,7 @@ fun RazrNotificationAlert(
                 Text(
                     text = current.headline.text,
                     color = palette.selectInk.copy(alpha = 0.85f),
-                    fontSize = 7.sp,
+                    fontSize = 10.2.sp,
                     maxLines = 3,
                 )
             }
@@ -113,7 +113,7 @@ fun RazrNotificationAlert(
             Text(
                 text = "Tap to open",
                 color = palette.selectInk.copy(alpha = 0.75f),
-                fontSize = 7.sp,
+                fontSize = 10.2.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.End,
                 modifier = Modifier.fillMaxWidth(),
@@ -148,7 +148,7 @@ fun RazrCoverNotificationAlert(
             Text(
                 text = if (isMessage) "${current.count} NEW MESSAGE(S)" else "${current.count} NEW ALERT(S)",
                 color = palette.selectInk,
-                fontSize = 8.sp,
+                fontSize = 11.6.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
@@ -182,14 +182,14 @@ fun RazrRoutingHint(
             Text(
                 "In-app alert here",
                 color = palette.selectLow,
-                fontSize = 6.5.sp,
+                fontSize = 9.4.sp,
                 fontWeight = FontWeight.Bold,
             )
         }
         Text(
             "System alert elsewhere",
             color = palette.inkDim,
-            fontSize = 6.5.sp,
+            fontSize = 9.4.sp,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.End,
         )
