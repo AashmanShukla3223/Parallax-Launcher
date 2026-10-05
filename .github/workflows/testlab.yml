@@ -1,0 +1,83 @@
+name: Device Verification (Firebase Test Lab)
+
+# Real physical hardware, which the emulator job cannot fully stand in for: real GPU for the
+# AGSL shaders, real sensors for SensorHub, real notification-listener and role plumbing.
+#
+# Quota is the binding constraint, not money: on the Spark (no-card) plan Test Lab allows
+# 5 physical-device runs per day. See docs/test-lab-setup.md for the one-time GCP setup and
+# for how to raise this to Blaze (30 min/day free, then $5/device-hour).
+#
+# Kept off pull_request deliberately so it cannot eat the daily quota on every push.
+on:
+  workflow_dispatch:
+  schedule:
+    # Sunday 06:17 UTC. Off the hour on purpose: scheduled CI sharing a start time with
+    # everyone else's cron gets queued, and this job may sit waiting for a device.
+    - cron: '17 6 * * 0'
+
+concurrency:
+  # Test Lab caps physical-device runs per day; serialising avoids colliding with yourself.
+  group: testlab-physical
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write   # required for Workload Identity Federation -> gcloud auth
+
+jobs:
+  instrumented:
+    name: Smoke test on physical device
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Install gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          install_gcloud: true
+
+      - name: Authenticate via Workload Identity Federation
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_TESTLAB_SERVICE_ACCOUNT }}
+
+      - name: Verify identity
+        run: gcloud auth list --filter=status:ACTIVE --format='value(account)'
+
+      # Both APKs are required: FTL installs the app, then drives it with the test APK.
+      - name: Build app and test APKs
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon
+
+      # Test Lab rotates its physical fleet, so confirm the model/version pair is still offered
+      # before trusting a red run: `gcloud firebase test android models list --project <id>`.
+      - name: Run on physical device
+        run: |
+          gcloud firebase test android run \
+            --project "${{ vars.GCP_PROJECT_ID }}" \
+            --app app/build/outputs/apk/debug/app-debug.apk \
+            --test app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk \
+            --device model=Pixel2,version=30,locale=en,orientation=portrait \
+            --type instrumentation \
+            --timeout 15m \
+            --results-bucket "${{ vars.GCP_RESULTS_BUCKET }}" \
+            --results-dir "testlab-${{ github.run_id }}"
+
+      - name: Summarise results
+        if: always()
+        run: |
+          gcloud firebase test android matrices list \
+            --project "${{ vars.GCP_PROJECT_ID }}" \
+            --latest 5 --format='table(matrix_id,state,dimensions)' || true
