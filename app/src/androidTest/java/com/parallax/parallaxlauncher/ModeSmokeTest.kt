@@ -76,29 +76,30 @@ class ModeSmokeTest {
                 .commit()
 
             ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-                // The content view is the real signal: it is only attached once the mode
-                // composable has drawn, so a throw inside setContent fails here rather than
-                // passing silently.
-                onView(withId(android.R.id.content)).check(matches(isDisplayed()))
+                val state = awaitResumed(scenario)
                 assertNotFinishing(scenario, mode)
 
-                val state = awaitResumed(scenario)
                 if (mode == RAZR_MODE) {
-                    // Mode 7 requests ROLE_DIALER on entry (RazrV3iScreen.kt:369). That system
-                    // dialog parks the activity at STARTED, which is correct behaviour rather
-                    // than a crash, so accept either state here.
+                    // Mode 7 asks for ROLE_DIALER the moment it composes
+                    // (RazrV3iScreen.kt:369), and that system dialog keeps the activity below
+                    // RESUMED. Espresso refuses to run any view interaction without a RESUMED
+                    // activity, so it cannot drive this screen at all here -- hence a lifecycle
+                    // assertion only. Modes 1-6 carry the content assertions.
                     assertTrue(
-                        "mode $mode ended in $state; expected RESUMED or STARTED (dialer role " +
-                            "dialog is allowed to cover it)",
+                        "mode $mode only reached $state; expected at least STARTED",
                         state == Lifecycle.State.RESUMED || state == Lifecycle.State.STARTED,
                     )
-                } else {
-                    assertEquals(
-                        "mode $mode never reached RESUMED (threw during onCreate/setContent?)",
-                        Lifecycle.State.RESUMED,
-                        state,
-                    )
+                    continue
                 }
+
+                assertEquals(
+                    "mode $mode never reached RESUMED (threw during onCreate/setContent?)",
+                    Lifecycle.State.RESUMED,
+                    state,
+                )
+                // The content view is only attached once the mode composable has drawn, so a
+                // throw inside setContent fails here rather than passing silently.
+                onView(withId(android.R.id.content)).check(matches(isDisplayed()))
             }
         }
     }

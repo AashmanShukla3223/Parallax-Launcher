@@ -77,7 +77,6 @@ jobs:
           script: ./gradlew :app:connectedDebugAndroidTest --no-daemon
           disable-animations: true
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -camera-back none
-          disable-cache: true
 
       - name: Upload test reports on failure
         if: failure()
