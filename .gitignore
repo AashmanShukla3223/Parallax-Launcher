@@ -13,3 +13,7 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Kotlin build-session scratch: compiler error logs and session files.
+# Project-local tooling metadata, not source.
+/.kotlin
