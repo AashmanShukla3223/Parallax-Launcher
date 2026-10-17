@@ -72,6 +72,8 @@ Artifacts expire 90 days after the run. Anything you intend to publish has to be
 
 Gate the individual **steps** instead — the current `release` job reads the secret in one unconditional "Detect signing key" step and gates the five signing steps on `steps.signing.outputs.available`. A fork has no secrets, so that step emits `::notice::` and the job passes without producing a release APK.
 
+**Verified, on both branches.** A run with the secret present executes all five signing steps and uploads the APK. A run forced down the skip path left `Detect signing key` green, marked all five signing steps `skipped`, passed the job green, and produced only `parallax-launcher-debug` — no unsigned release artifact leaked. Do not test this by deleting `ANDROID_KEYSTORE_BASE64`: the keystore exists only on the original dev machine, so the secret could not be restored.
+
 Corollary: **verify workflow changes by watching a real run**, never by parsing the YAML locally.
 
 ## Release signing
@@ -171,7 +173,7 @@ Rebuilt against photographs of a real handset plus the supplied manual. Design f
 
 - **Palette is split.** `RazrFinish` is the *enum* (Light/Dark/Blue/Rose Quartz). `RazrSkin` is the *display chrome data class*. `RazrPalette` combines a `RazrHardware` + `RazrSkin`. The names collide conceptually — don't rename one without the other.
 - **The screen is a light UI.** Near-white content field, thin navy status strip, pale blue-grey title bar, medium-blue selection bars, bold *sans-serif* mixed-case text. It is not a dark monochrome LCD. Typography is `FontFamily.SansSerif` (the stock handsets used Univers, which is not redistributable).
-- **The keypad has no key tiles.** One continuous brushed sheet with the electric-blue etch cut into it, forming three vertical channels — outer two wide, centre one narrow. The narrow centre channel creates the waisted silhouette. Legends mirror at the centre column: letters right of 2/5/8, left of 3/6/9.
+- **The keypad has no key tiles.** One continuous brushed sheet with the electric-blue etch cut into it. In the numeric block there are **no vertical walls at all** — one continuous groove crosses each row boundary, stepping down into a narrow centre channel and back out again. That pinch is what gives the deck its waisted silhouette. Legends mirror at the centre column: letters right of 2/5/8, left of 3/6/9. Do not reintroduce per-key rectangles; drawing a vertical line down each channel edge plus a horizontal line per row is exactly what made it read as a grid of tiles. Channel geometry lives in one `Channels` object shared by the paint and the tap targets.
 - **Panels are pixel-exact**: internal 176×220 (4:5), external 96×80.
 - **Icons are drawn on `Canvas`** in `RazrIcons.kt`. Do not substitute monospace/emoji dingbats — that was the single clearest "not a real phone" tell.
 - Flip open/closed is a real state: closed removes the inner panel entirely and leaves only the lower shell carrying wallpaper, clock, notifications and message previews. Unlock delegates to the Android credential screen (`KeyguardManager.createConfirmDeviceCredentialIntent`) and only engages while the device itself is locked.
@@ -182,17 +184,20 @@ Reference material lives in `Razr V3i References/` (spec docx, 128-page manual P
 
 ### Current state
 
-`main` builds and all three CI jobs are green, including the signed release APK (v2 scheme, verified with `aapt2 dump badging` and `apksigner verify`). v1.0.0 is published from tag `v1.0.0`, carrying the CI-built `app-release.apk`.
+`main` builds and all three CI jobs are green. v1.0.0 is published from tag `v1.0.0`, carrying the CI-built `app-release.apk`.
 
-**The keypad is still the main outstanding gap.** It renders as a grid of closed boxes, each key its own rounded border, rather than one continuous etched sheet with three channels. Measured off a full-resolution screenshot on a real device (1080x2340 screen), the key boxes occupy:
+**Keypad** — fixed. The numeric block is drawn as five serpentine grooves with no vertical channel walls, so it reads as one etched sheet rather than a grid of tiles. Verified by screenshot on a real device against `Razr V3i References/keypad close up.jpeg`.
 
-| Column | x range | width |
-|---|---|---|
-| left | 159–389 | 230px |
-| centre | 429–650 | **221px** |
-| right | 690–920 | 230px |
+**Calls** — fixed. `placeCall()` used to set the in-call view unconditionally, even when `TelecomManager.placeCall` threw. Worse, `placeCall` can *succeed* while the call is refused downstream: `RazrInCallService` never attaches, `CallManager.call` stays null, and the deck sat on a fabricated `CONNECTED` screen indefinitely. There is now a watchdog that falls back to standby, and `callStatus` reports `CALLING...` rather than `CONNECTED` when there is no call behind it.
 
-with row centres at y = 1768, 1886, 2003, 2119. The centre column is only 9px narrower than the outer two, so the waisted silhouette — which on the real handset comes from that channel being substantially narrow — barely registers. Those are the numbers to hit when fixing it, not fresh eyeballing.
+**Emergency numbers** — audited against Wikipedia plus a second source for every suspicious row; 20 corrections applied (Turkmenistan's obsolete Soviet codes collapsing to the bare digits 1–4 was the worst, plus Niue/Tokelau international numbers transcribed as local codes, Thailand missing 1669, and ten missing countries). Turkey, Bangladesh, Qatar, Saudi and UAE per-service codes were deliberately left alone — plausible but unconfirmed against a national source.
+
+**Still outstanding:**
+
+- **SIM insertion/removal has never been seen working.** The status strip correctly reports `NO SIM` / `NO SVC` on a genuinely SIM-less device, but a physical swap is the only way to verify the transition.
+- **The middle soft key is a legend, not a touch target.** The dial screen draws `CLEAR / SEND / CANCEL`, but only the flank keys and the rocker centre are pressable; `SEND` is the rocker centre, which routes to `startCall`. Tapping the word "SEND" itself does nothing. Coherent with the hardware layout, but it reads as a dead label.
+- **Play Store signing/track** — not started. The APK is signed directly with the project key.
+- **CI is intermittently flaky** in GitHub's OIDC step, before any build.
 
 ## Conventions
 
