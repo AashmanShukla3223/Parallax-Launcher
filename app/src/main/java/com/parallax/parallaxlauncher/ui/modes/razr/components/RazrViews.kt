@@ -590,6 +590,7 @@ private fun Pill(palette: RazrPalette, label: String, on: Boolean) {
 fun RazrIncomingCallScreen(
     palette: RazrPalette,
     number: String,
+    canAnswer: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -603,8 +604,16 @@ fun RazrIncomingCallScreen(
         T("Incoming call", palette.alert, 17.4.sp, FontWeight.Bold, TextAlign.Center)
         T(number, palette.ink, 24.6.sp, FontWeight.Bold, TextAlign.Center)
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            T("Send answers", palette.selectLow, 13.sp, FontWeight.Bold, TextAlign.Center)
-            T("Power declines", palette.alert, 13.sp, FontWeight.Bold, TextAlign.Center)
+            if (canAnswer) {
+                T("Send answers", palette.selectLow, 13.sp, FontWeight.Bold, TextAlign.Center)
+                T("Power declines", palette.alert, 13.sp, FontWeight.Bold, TextAlign.Center)
+            } else {
+                // Answering is placing a call, and without a SIM the radio
+                // cannot carry one. Saying so beats offering a key that fails.
+                T("No SIM card available", palette.alert, 13.sp, FontWeight.Bold, TextAlign.Center)
+                T("Cannot answer this call", palette.inkDim, 13.sp, FontWeight.Bold, TextAlign.Center)
+                T("Power ends it", palette.alert, 13.sp, FontWeight.Bold, TextAlign.Center)
+            }
         }
     }
 }
@@ -934,6 +943,7 @@ fun RazrCoverPanel(
 fun RazrCoverIncomingCall(
     palette: RazrPalette,
     number: String,
+    canAnswer: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -966,9 +976,11 @@ fun RazrCoverIncomingCall(
                 modifier = Modifier.fillMaxWidth(),
             )
 
+            // Answering is placing a call. With no SIM the radio cannot carry
+            // one, so the key is not offered as though it would work.
             T(
-                "SEND answers  POWER declines",
-                palette.inkDim,
+                if (canAnswer) "SEND answers  POWER declines" else "NO SIM - CANNOT ANSWER",
+                if (canAnswer) palette.inkDim else palette.alert,
                 8.7.sp,
                 FontWeight.Bold,
                 TextAlign.Center,

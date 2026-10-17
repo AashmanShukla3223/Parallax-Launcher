@@ -264,6 +264,30 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
     // the strip and the dial gate must never disagree about it.
     val simPresent = remember { hasSim(context) }
 
+    // Answering an incoming call is placing a call, and with no SIM the radio
+    // cannot carry one, so the answer is refused. An emergency call is the only
+    // exception: a no-SIM handset is still expected to connect for one, and
+    // that is the entire purpose of the exception. Ordinary call-backs are NOT
+    // exempt -- a return call is still a call, and still needs a SIM.
+    val incomingMayAnswer = remember(connectedNumber, simPresent) {
+        simPresent || isEmergencyNumber(context, connectedNumber)
+    }
+
+    /**
+     * Answers an incoming call, or refuses when no SIM is present to carry it.
+     *
+     * Every answer path goes through here -- the centre key, both soft keys and
+     * the green key -- so there is no route around the refusal.
+     */
+    fun answerOrRefuse() {
+        if (incomingMayAnswer) {
+            CallManager.answer()
+        } else {
+            haptics.thud()
+            toast = "NO SIM - CANNOT ANSWER"
+        }
+    }
+
     val currencySymbol = remember(settings.callCurrencyIndex) {
         when (settings.callCurrencyIndex) {
             0 -> "?"; 1 -> "p"; 2 -> "$"; else -> "?"
@@ -807,7 +831,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
             RazrView.CALLS -> openCalls()
             RazrView.RINGTONES -> open(Intent(AndroidSettings.ACTION_SOUND_SETTINGS))
             RazrView.IN_CALL -> { CallManager.hold(!isOnHold); tonePlayer.playRazrChirp() }
-            RazrView.INCOMING -> CallManager.answer()
+            RazrView.INCOMING -> answerOrRefuse()
             else -> tonePlayer.playRazrChirp()
         }
     }
@@ -831,7 +855,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         when (view) {
             RazrView.STANDBY -> openCamera()
             RazrView.IN_CALL -> CallManager.speaker(!isSpeaker)
-            RazrView.INCOMING -> CallManager.answer()
+            RazrView.INCOMING -> answerOrRefuse()
             RazrView.DIALING -> { dialBuffer = ""; goHome() }
             else -> goHome()
         }
@@ -953,7 +977,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
 
                         Box(Modifier.weight(1f).fillMaxWidth()) {
                             when {
-                                isRinging -> RazrIncomingCallScreen(palette, connectedNumber)
+                                isRinging -> RazrIncomingCallScreen(palette, connectedNumber, canAnswer = incomingMayAnswer)
                                 locked -> RazrUnlockScreen(palette, unlockError)
                                 else -> ActiveView(
                                     view = view,
@@ -1072,7 +1096,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
                     onSoftRight = { onSoftRight() },
                     onCall = {
                         when {
-                            isRinging -> { haptics.thud(); CallManager.answer() }
+                            isRinging -> { haptics.thud(); answerOrRefuse() }
                             view == RazrView.IN_CALL -> CallManager.hold(!isOnHold)
                             locked -> { view = RazrView.UNLOCK; unlockEntry = ""; unlockError = null }
                             else -> startCall(dialBuffer, permLauncher, roleLauncher)
@@ -1126,7 +1150,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
                         // A call outranks the lock prompt and the wallpaper: the
                         // cover has to say who is calling before you decide
                         // whether to bother opening the flip.
-                        isRinging -> RazrCoverIncomingCall(palette, connectedNumber)
+                        isRinging -> RazrCoverIncomingCall(palette, connectedNumber, canAnswer = incomingMayAnswer)
                         inCall -> RazrCoverInCall(
                             palette = palette,
                             number = connectedNumber,
