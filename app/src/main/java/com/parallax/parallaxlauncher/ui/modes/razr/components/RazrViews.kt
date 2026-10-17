@@ -926,8 +926,15 @@ fun RazrCoverPanel(
             ) {
                 T(
                     alert
-                        ?: if (missedCalls > 0) "$missedCalls MISSED CALLS"
-                        else date.uppercase(Locale.ROOT),
+                        // "1 MISSED CALLS" was the wording on the cover, which
+                        // is exactly the sort of thing that gives a skin away.
+                        // A 96x80 panel only has room for the singular form
+                        // anyway, so it has to be short as well as correct.
+                        ?: if (missedCalls > 0) {
+                            if (missedCalls == 1) "1 MISSED CALL" else "$missedCalls MISSED CALLS"
+                        } else {
+                            date.uppercase(Locale.ROOT)
+                        },
                     if (alert != null || missedCalls > 0) Color.White else Color.White.copy(alpha = 0.85f),
                     9.4.sp,
                     FontWeight.Bold,

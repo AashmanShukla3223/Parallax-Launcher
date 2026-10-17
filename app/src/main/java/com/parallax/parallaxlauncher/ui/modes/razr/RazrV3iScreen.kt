@@ -458,6 +458,15 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
                 wasRinging = false
                 everAnswered = false
             }
+            // Some teardowns never surface DISCONNECTED at all: the call record
+            // simply goes away. Without this branch the flags were cleared
+            // without tallying, so a genuinely missed call was silently lost
+            // and the cover never said so.
+            live == null && wasRinging && !everAnswered -> {
+                missedCalls += 1
+                wasRinging = false
+                everAnswered = false
+            }
             live == null -> {
                 wasRinging = false
                 everAnswered = false
