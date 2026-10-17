@@ -262,7 +262,11 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
     val inCall = live?.state == Call.STATE_ACTIVE
     // Read once: simState is stable for as long as the app is running, and
     // the strip and the dial gate must never disagree about it.
-    val simPresent = remember { hasSim(context) }
+    // Taken from telemetry rather than read once. TelemetryService re-samples
+    // the SIM every second, so this follows a SIM being inserted or removed and
+    // an operator changing, instead of freezing on whatever was true when the
+    // screen was first composed.
+    val simPresent = telemetryState.simPresent
 
     // Answering an incoming call is placing a call, and with no SIM the radio
     // cannot carry one, so the answer is refused. An emergency call is the only
@@ -899,7 +903,12 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
     }
 
     // The operator a 2G handset would show, not the modern consumer brand.
-    val operatorName = remember { simOperator2G(context) }
+    // Keyed on the raw name so a carrier change re-resolves through the 2G
+    // table. A bare remember{} here pinned the operator for the lifetime of the
+    // process, which is wrong when the SIM can change underneath the app.
+    val operatorName = remember(telemetryState.simOperatorName) {
+        RazrOperators.resolveFor2G(telemetryState.simOperatorName)
+    }
 
     val wallpaper = RazrWallpapers.all[
         settings.razrWallpaperIndex.coerceIn(RazrWallpapers.all.indices)
@@ -1439,28 +1448,6 @@ private fun Context.copyToClipboard(label: String) {
 }
 
 /**
- * Whether a usable SIM is present.
- *
- * `simState` is readable without any permission, unlike the operator name, so
- * this is safe to call anywhere. A vendor implementation that throws is treated
- * as "SIM present": refusing calls on a device we merely failed to interrogate
- * would be worse than letting the platform decide.
- */
-private fun hasSim(context: Context): Boolean = try {
-    when ((context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager).simState) {
-        TelephonyManager.SIM_STATE_READY,
-        TelephonyManager.SIM_STATE_NETWORK_LOCKED,
-        TelephonyManager.SIM_STATE_PIN_REQUIRED,
-        TelephonyManager.SIM_STATE_PUK_REQUIRED,
-        -> true
-
-        else -> false
-    }
-} catch (t: Throwable) {
-    true
-}
-
-/**
  * The SIM's own list of emergency numbers, where the platform exposes one.
  *
  * On API 29+ `TelephonyManager.getEmergencyNumberList()` reports the numbers
@@ -1562,29 +1549,6 @@ private fun readPhonebook(context: Context): List<RazrContact> = try {
 } catch (t: Throwable) {
     // SecurityException without the grant, or a vendor provider that misbehaves.
     emptyList()
-}
-
-/**
- * The SIM's operator as a 2G handset would print it.
- *
- * Deliberately does not request READ_PHONE_STATE: this project ships no
- * telephony read permission, and asking for one to decorate a status strip is
- * not a trade worth making. From API 29 the framework can withhold the name
- * anyway, so this is a best-effort read that degrades to MOTOROLA -- which is
- * exactly what the stock handset shows before it locks onto a network.
- */
-private fun simOperator2G(context: Context): String = try {
-    val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-    val reported = when {
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ->
-            tm.createForSubscriptionId(SubscriptionManager.getDefaultSubscriptionId())
-                .simOperatorName
-        else -> tm.simOperatorName
-    }
-    RazrOperators.resolveFor2G(reported)
-} catch (t: Throwable) {
-    // No SIM, no permission, or a vendor TelephonyManager that throws.
-    RazrOperators.UNKNOWN_OPERATOR
 }
 
 /** Trims trailing zeros so 6.0 reads as "6" and 0.20 as "0.2". */
