@@ -34,7 +34,37 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      # Test Lab needs four repository variables that only exist after the
+      # one-time GCP setup in docs/test-lab-setup.md. Until that has been done --
+      # on a fork, a fresh clone, or simply before anyone set them up -- none of
+      # them are present, and the auth step then fails with a Workload Identity
+      # Federation error that reads like a credential problem rather than missing
+      # configuration. Name the missing variables instead.
+      #
+      # This reads `vars`, not `secrets`. That distinction matters: the secrets
+      # context is not available in a job-level `if`, and a job-level `if`
+      # referencing `secrets` makes Actions reject the entire workflow file.
+      - name: Check Test Lab configuration
+        id: config
+        env:
+          GCP_WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
+          GCP_TESTLAB_SERVICE_ACCOUNT: ${{ vars.GCP_TESTLAB_SERVICE_ACCOUNT }}
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCP_RESULTS_BUCKET: ${{ vars.GCP_RESULTS_BUCKET }}
+        run: |
+          missing=""
+          for v in GCP_WIF_PROVIDER GCP_TESTLAB_SERVICE_ACCOUNT GCP_PROJECT_ID GCP_RESULTS_BUCKET; do
+            [ -n "${!v:-}" ] || missing="$missing $v"
+          done
+          if [ -n "$missing" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Skipping Firebase Test Lab::Missing repository variables:$missing. See docs/test-lab-setup.md for the one-time GCP setup. The Android CI workflow still covers this on an emulator."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Set up JDK 17
+        if: steps.config.outputs.configured == 'true'
         uses: actions/setup-java@v4
         with:
           java-version: '17'
@@ -42,21 +72,25 @@ jobs:
           cache: gradle
 
       - name: Install gcloud
+        if: steps.config.outputs.configured == 'true'
         uses: google-github-actions/setup-gcloud@v2
         with:
           install_gcloud: true
 
       - name: Authenticate via Workload Identity Federation
+        if: steps.config.outputs.configured == 'true'
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
           service_account: ${{ vars.GCP_TESTLAB_SERVICE_ACCOUNT }}
 
       - name: Verify identity
+        if: steps.config.outputs.configured == 'true'
         run: gcloud auth list --filter=status:ACTIVE --format='value(account)'
 
       # Both APKs are required: FTL installs the app, then drives it with the test APK.
       - name: Build app and test APKs
+        if: steps.config.outputs.configured == 'true'
         run: |
           chmod +x gradlew
           ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon
@@ -64,6 +98,7 @@ jobs:
       # Test Lab rotates its physical fleet, so confirm the model/version pair is still offered
       # before trusting a red run: `gcloud firebase test android models list --project <id>`.
       - name: Run on physical device
+        if: steps.config.outputs.configured == 'true'
         run: |
           gcloud firebase test android run \
             --project "${{ vars.GCP_PROJECT_ID }}" \
@@ -76,7 +111,7 @@ jobs:
             --results-dir "testlab-${{ github.run_id }}"
 
       - name: Summarise results
-        if: always()
+        if: always() && steps.config.outputs.configured == 'true'
         run: |
           gcloud firebase test android matrices list \
             --project "${{ vars.GCP_PROJECT_ID }}" \
