@@ -22,7 +22,13 @@ package com.parallax.parallaxlauncher.ui.modes.razr
  *
  *  1. [android.telephony.TelephonyManager.getEmergencyNumberList] on API 29+.
  *     This is the SIM and network's own list and is authoritative, so it wins.
- *  2. [byCountry] below, keyed on the SIM's ISO country code.
+ *  2. [byCountry] below, keyed on the SIM's ISO country code, falling back to
+ *     the **network's**. That fallback is what keeps this table reachable in the
+ *     one case it matters: with no SIM inserted `simCountryIso` is blank, but a
+ *     handset sitting in coverage is still registered to a network and
+ *     `networkCountryIso` reports that network's country. Verified on a SIM-less
+ *     device registered to a Korean network — `gsm.sim.operator.iso-country`
+ *     empty, `gsm.operator.iso-country` = `kr`.
  *  3. [GSM_UNIVERSAL], which is the fallback when the country is unknown.
  *
  * Treat the per-country rows as a starting point rather than gospel: emergency
@@ -30,6 +36,21 @@ package com.parallax.parallaxlauncher.ui.modes.razr
  * Turkey consolidated onto 112, the UK still lists 119 for COVID testing which
  * is not an emergency number at all). The entries that actually matter for
  * safety are the short primary ones.
+ *
+ * ## Audit
+ *
+ * Every row was checked against Wikipedia's list plus a second source wherever a
+ * row looked wrong. Corrected in that pass: Turkmenistan carried the obsolete
+ * Soviet two-digit plan, which [normalise] collapsed to the bare digits 1-4;
+ * Niue and Tokelau had international-format numbers transcribed as local short
+ * codes; Thailand was missing 1669 (the ambulance number English-speaking
+ * callers are actually given) and carried a 112 it does not have; Myanmar's
+ * highway police number lost a digit; Malaysia, Tonga, Tuvalu, Vanuatu and six
+ * French-plan territories were absent entirely.
+ *
+ * Still unverified and worth a further pass: Turkey's 110/119/122, Bangladesh
+ * 991/998, Qatar 997/998, Saudi 996, UAE 112. These were left alone because no
+ * national source could be confirmed for them.
  */
 object RazrEmergencyNumbers {
 
@@ -87,7 +108,7 @@ object RazrEmergencyNumbers {
         "GN" to setOf("117", "18", "19", "118", "122"),
         "GW" to setOf("112", "117", "119", "118"),
         "CI" to setOf("110", "111", "170", "185", "180"),
-        "LR" to setOf("911", "911"),
+        "LR" to setOf("911"),
         "KE" to setOf("112", "999", "911"),
         "LY" to setOf("1515", "193"),
         "LS" to setOf("123", "121", "122"),
@@ -185,7 +206,7 @@ object RazrEmergencyNumbers {
         "KH" to setOf("117", "119", "118"),
         "CN" to setOf("110", "120", "119", "122", "112", "911"),
         "TL" to setOf("112"),
-        "HK" to setOf("999", "911", "112"),
+        "HK" to setOf("999", "992", "911", "112"),
         "IN" to setOf("112", "100", "101", "108", "102", "1098", "1363", "181", "104"),
         "ID" to setOf("112", "110", "118", "119", "113", "115", "129", "123"),
         "IR" to setOf("110", "115", "125", "123", "112", "911"),
@@ -200,9 +221,10 @@ object RazrEmergencyNumbers {
         "LA" to setOf("191", "195", "190"),
         "LB" to setOf("999", "112", "140", "175", "160", "125"),
         "MO" to setOf("999", "110", "112", "993"),
+        "MY" to setOf("999", "112"),
         "MV" to setOf("911", "119", "100", "118", "191", "115"),
         "MN" to setOf("105", "102", "103", "101"),
-        "MM" to setOf("999", "199", "192", "191", "188"),
+        "MM" to setOf("999", "199", "192", "191", "1880"),
         "NP" to setOf("100", "102", "101", "103", "112"),
         "OM" to setOf("9999", "112"),
         "PK" to setOf("15", "115", "1122", "16", "1915", "112"),
@@ -211,13 +233,13 @@ object RazrEmergencyNumbers {
         "QA" to setOf("999", "112"),
         "SA" to setOf("911", "999", "997", "998", "993"),
         "SG" to setOf("999", "995", "112", "911"),
-        "LK" to setOf("119", "110"),
+        "LK" to setOf("119", "118", "110"),
         "SY" to setOf("112", "110", "113", "115"),
         "TW" to setOf("110", "119", "112", "113", "118"),
         "TJ" to setOf("112", "102", "103", "101", "104"),
-        "TH" to setOf("191", "199", "112"),
+        "TH" to setOf("191", "1669", "199"),
         "TR" to setOf("112", "911", "153", "114", "187"),
-        "TM" to setOf("01", "02", "03", "001", "002", "003", "004"),
+        "TM" to setOf("112", "101", "102", "103"),
         "AE" to setOf("999", "998", "997", "996", "901"),
         "UZ" to setOf("112", "102", "103", "101", "1050", "104", "1055"),
         "VN" to setOf("113", "115", "114", "111", "112"),
@@ -231,7 +253,7 @@ object RazrEmergencyNumbers {
         "AZ" to setOf("112", "102", "103", "101", "104", "902", "199"),
         "BY" to setOf("102", "103", "101", "104"),
         "BE" to setOf("101", "112", "1722"),
-        "BA" to setOf("122", "124", "123", "121"),
+        "BA" to setOf("112", "122", "124", "123", "121"),
         "BG" to setOf("112", "166", "150", "160"),
         "HR" to setOf("112", "192", "194", "193", "195"),
         "CY" to setOf("112", "199", "1441"),
@@ -284,7 +306,7 @@ object RazrEmergencyNumbers {
         "AS" to setOf("911"),
         "AU" to setOf("000", "112", "132500", "106"),
         "CK" to setOf("999", "911"),
-        "FJ" to setOf("911", "917", "910", "919"),
+        "FJ" to setOf("911", "917", "910"),
         "PF" to setOf("112", "17", "15", "18"),
         "GU" to setOf("911"),
         "KI" to setOf("100", "999", "192", "194", "195", "193"),
@@ -293,13 +315,16 @@ object RazrEmergencyNumbers {
         "NR" to setOf("110", "111", "112"),
         "NC" to setOf("112", "17", "15", "18"),
         "NZ" to setOf("111", "112", "911"),
-        "NU" to setOf("4333", "4202", "4133"),
+        "NU" to setOf("999"),
         "MP" to setOf("911"),
         "PW" to setOf("911"),
         "PG" to setOf("112", "111", "110"),
         "WS" to setOf("999", "995", "996", "994"),
         "SB" to setOf("911", "999", "111", "988"),
-        "TK" to setOf("2116", "2112"),
+        "TK" to setOf("999"),
+        "TO" to setOf("911", "922", "933", "999"),
+        "TV" to setOf("911", "999", "000"),
+        "VU" to setOf("111", "112", "113"),
 
         // ---- Territories with their own dialling plan --------------------
         "SH" to setOf("999", "112"),
@@ -307,6 +332,12 @@ object RazrEmergencyNumbers {
         "TA" to setOf("999", "911"),
         "FK" to setOf("112", "999"),
         "IO" to setOf("999", "112"),
+        "AX" to setOf("112"),
+        "BL" to setOf("112", "17", "18"),
+        "PM" to setOf("112", "17", "15", "18"),
+        "RE" to setOf("112", "17", "15", "18"),
+        "WF" to setOf("15", "17", "18", "112"),
+        "YT" to setOf("112", "17", "15", "18"),
         "CX" to setOf("000"),
         "CC" to setOf("000"),
         "AQ" to setOf("911"),
