@@ -48,7 +48,6 @@ jobs:
     name: Signed release APK
     runs-on: ubuntu-latest
     needs: build
-    if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
 
     steps:
       - name: Check out repository
