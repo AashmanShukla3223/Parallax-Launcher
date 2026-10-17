@@ -6,6 +6,14 @@ on:
   pull_request:
     branches: [ "main", "master" ]
   workflow_dispatch:
+    inputs:
+      # TEMPORARY verification aid. Forces the release job down the same branch a
+      # fork takes (no secret -> skip), so that path can be exercised on the real
+      # pipeline. Delete once it has served its purpose.
+      force_skip_signing:
+        description: "Force the signing steps to skip, as a fork would"
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -63,8 +71,12 @@ jobs:
         id: signing
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          FORCE_SKIP: ${{ inputs.force_skip_signing }}
         run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
+          if [ -n "$FORCE_SKIP" ] && [ "$FORCE_SKIP" != "false" ]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Skipping the signed release::FORCE_SKIP is set, so the signing steps are being skipped on purpose."
+          elif [ -n "$KEYSTORE_BASE64" ]; then
             echo "available=true" >> "$GITHUB_OUTPUT"
           else
             echo "available=false" >> "$GITHUB_OUTPUT"
