@@ -2,6 +2,7 @@ package com.parallax.parallaxlauncher.ui.modes.razr.components
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -25,7 +26,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
@@ -81,6 +85,7 @@ private fun T(
 fun RazrStatusGlyphs(
     palette: RazrPalette,
     operatorName: String = RazrOperators.UNKNOWN_OPERATOR,
+    noSim: Boolean = false,
     signalBars: Int,
     batteryPercent: Int,
     charging: Boolean,
@@ -112,14 +117,24 @@ fun RazrStatusGlyphs(
         // The stock strip prints the network operator, not the technology.
         // On a 2G handset that is the legacy network name, so "Jio" subscribers
         // read "Reliance Communications" here.
-        T(operatorName.take(9).uppercase(Locale.ROOT), ink, 8.7.sp, FontWeight.Bold)
-        T("▧", ink, 8.7.sp)
+        // Without a SIM the strip stops naming an operator, because there is no
+        // network to name, and says the one thing still true: emergency calls
+        // only. The ring-style caption is dropped to make room, since a ringer
+        // profile is meaningless when there is nowhere to ring.
+        if (noSim) {
+            T("NO SIM - EMERG. CALLS ONLY", palette.alert, 8.sp, FontWeight.Bold, maxLines = 1)
+        } else {
+            T(operatorName.take(9).uppercase(Locale.ROOT), ink, 8.7.sp, FontWeight.Bold)
+            T("▧", ink, 8.7.sp)
+        }
         if (unreadMessages > 0) {
             T("✉", palette.badgeInk, 10.2.sp, FontWeight.Bold)
             T(unreadMessages.toString(), palette.badgeInk, 8.7.sp, FontWeight.Bold)
         }
         Spacer(Modifier.weight(1f))
-        T(ringStyleName.take(3).uppercase(Locale.ROOT), ink, 8.sp, FontWeight.Bold)
+        if (!noSim) {
+            T(ringStyleName.take(3).uppercase(Locale.ROOT), ink, 8.sp, FontWeight.Bold)
+        }
         // Battery: continuous 1-100% fill, red at or below 20%, green + bolt
         // while charging. Replaces the old three-segment cap, which could only
         // ever show full / half / nearly-empty.
@@ -142,7 +157,6 @@ fun RazrStatusGlyphs(
 @Composable
 fun RazrHomeScreen(
     palette: RazrPalette,
-    operatorName: String = RazrOperators.UNKNOWN_OPERATOR,
     wallpaperRes: Int,
     time: String,
     amPm: String,
@@ -171,9 +185,17 @@ fun RazrHomeScreen(
             Modifier.fillMaxSize().padding(horizontal = 7.dp, vertical = 5.dp),
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            // Operator and date.
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                T(operatorName.take(11).uppercase(Locale.ROOT), palette.titleInk, 10.2.sp, FontWeight.Bold)
+            // Date only.
+            //
+            // The operator used to sit here too, on the left of the date. It
+            // now lives in the status strip, which is where a handset reports
+            // carrier and SIM state, so repeating it here was redundant -- and
+            // with no SIM it printed a carrier name right next to a "no SIM"
+            // strip, which read as a contradiction.
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+            ) {
                 T(date.uppercase(Locale.ROOT), palette.titleInk, 10.2.sp, FontWeight.Bold, TextAlign.End)
             }
 
@@ -807,6 +829,7 @@ fun RazrInboxList(
 fun RazrCoverPanel(
     palette: RazrPalette,
     operatorName: String = RazrOperators.UNKNOWN_OPERATOR,
+    noSim: Boolean = false,
     wallpaperRes: Int,
     time: String,
     amPm: String,
@@ -846,7 +869,13 @@ fun RazrCoverPanel(
                     .padding(horizontal = 2.dp, vertical = 1.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-        T(operatorName.take(9).uppercase(Locale.ROOT), Color.White, 8.7.sp, FontWeight.Bold)
+        T(
+            if (noSim) "NO SIM" else operatorName.take(9).uppercase(Locale.ROOT),
+            if (noSim) Color(0xFFFF6B5E) else Color.White,
+            8.7.sp,
+            FontWeight.Bold,
+            maxLines = 1,
+        )
                 if (unread > 0) T("✉$unread", Color(0xFFFFD34D), 8.7.sp, FontWeight.Bold)
                 T("▮", Color.White, 8.7.sp, FontWeight.Bold)
             }
@@ -887,6 +916,237 @@ fun RazrCoverPanel(
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
+        }
+    }
+}
+
+/**
+ * Incoming call on the closed flip.
+ *
+ * The 96 x 80 cover has room for exactly one useful thing while ringing, and on
+ * the real handset that is the number. The internal panel says "Incoming call"
+ * and then the number; the cover leads with the number, because that is the only
+ * thing needed to decide whether to pick up. The answer/decline line is kept to
+ * the minimum, since the green and red keys are what actually answer and
+ * reject and the screen would be unusable without telling you so.
+ */
+@Composable
+fun RazrCoverIncomingCall(
+    palette: RazrPalette,
+    number: String,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier
+            .fillMaxSize()
+            .background(palette.field),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            Modifier.fillMaxSize().padding(horizontal = 3.dp, vertical = 2.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .background(palette.alert)
+                    .padding(vertical = 1.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                T("INCOMING CALL", Color.White, 8.7.sp, FontWeight.Bold)
+            }
+
+            T(
+                number.ifBlank { "UNKNOWN" },
+                palette.ink,
+                15.9.sp,
+                FontWeight.Bold,
+                TextAlign.Center,
+                maxLines = 2,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            T(
+                "SEND answers  POWER declines",
+                palette.inkDim,
+                8.7.sp,
+                FontWeight.Bold,
+                TextAlign.Center,
+                maxLines = 1,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+/**
+ * Live call on the closed flip.
+ *
+ * With the flip shut there is no room for the timer or the cost breakdown the
+ * internal panel carries, so the cover shows what you can actually change: the
+ * number, and the three line states that the keys toggle. Speaker, hold and
+ * mute are all still live here, which is why they are shown rather than hidden.
+ */
+@Composable
+fun RazrCoverInCall(
+    palette: RazrPalette,
+    number: String,
+    timer: String,
+    muted: Boolean,
+    onHold: Boolean,
+    speaker: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier
+            .fillMaxSize()
+            .background(palette.field),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            Modifier.fillMaxSize().padding(horizontal = 3.dp, vertical = 2.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .background(Brush.horizontalGradient(listOf(palette.selectTop, palette.selectLow)))
+                    .padding(vertical = 1.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                T("IN CALL", palette.selectInk, 8.7.sp, FontWeight.Bold)
+            }
+
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                T(
+                    number.ifBlank { "-" },
+                    palette.ink,
+                    13.sp,
+                    FontWeight.Bold,
+                    TextAlign.Center,
+                    maxLines = 1,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                T(timer, palette.selectLow, 17.4.sp, FontWeight.Bold, TextAlign.Center, maxLines = 1)
+            }
+
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                CoverPill(palette, "SPKR", speaker, Modifier.weight(1f))
+                CoverPill(palette, "HOLD", onHold, Modifier.weight(1f))
+                CoverPill(palette, "MUTE", muted, Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun CoverPill(
+    palette: RazrPalette,
+    label: String,
+    on: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier
+            .clip(RoundedCornerShape(1.5.dp))
+            .background(if (on) palette.selectTop else palette.fieldAlt)
+            .border(0.6.dp, palette.inkDim, RoundedCornerShape(1.5.dp))
+            .padding(vertical = 1.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        T(
+            label,
+            if (on) palette.selectInk else palette.inkDim,
+            8.7.sp,
+            FontWeight.Bold,
+            TextAlign.Center,
+            maxLines = 1,
+        )
+    }
+}
+
+/**
+ * No SIM: emergency calls only.
+ *
+ * Shown instead of placing the call. Without a SIM the radio cannot carry an
+ * ordinary call at all, so refusing at the UI is more honest than letting the
+ * platform fail the dial and leave the caller with a silent failure. Emergency
+ * numbers still go through, because they must.
+ */
+@Composable
+fun RazrNoSimNotice(
+    palette: RazrPalette,
+    number: String,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier
+            .fillMaxSize()
+            .background(palette.field)
+            .padding(horizontal = 9.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceBetween,
+    ) {
+        T("RAZR V3i", palette.inkDim, 11.6.sp, FontWeight.Bold, TextAlign.Center)
+
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            // Circled i, drawn rather than typed: the panel glyph fonts are not
+            // guaranteed to carry an information symbol.
+            Canvas(Modifier.size(22.dp)) {
+                val r = size.minDimension / 2f
+                drawCircle(
+                    color = palette.selectLow,
+                    radius = r - size.minDimension * 0.06f,
+                    style = Stroke(width = size.minDimension * 0.10f),
+                )
+                drawLine(
+                    color = palette.selectLow,
+                    start = Offset(size.width / 2f, size.height * 0.44f),
+                    end = Offset(size.width / 2f, size.height * 0.70f),
+                    strokeWidth = size.minDimension * 0.11f,
+                    cap = StrokeCap.Round,
+                )
+                drawCircle(
+                    color = palette.selectLow,
+                    radius = size.minDimension * 0.07f,
+                    center = Offset(size.width / 2f, size.height * 0.30f),
+                )
+            }
+            T(
+                number,
+                palette.inkDim,
+                13.sp,
+                FontWeight.Bold,
+                TextAlign.Center,
+                maxLines = 1,
+            )
+            T(
+                "NO SIM CARD\nAVAILABLE",
+                palette.ink,
+                17.4.sp,
+                FontWeight.Bold,
+                TextAlign.Center,
+                maxLines = 2,
+            )
+            T(
+                "Emergency calls only\n(911 / 112)",
+                palette.selectLow,
+                11.6.sp,
+                FontWeight.Bold,
+                TextAlign.Center,
+                maxLines = 2,
+            )
+        }
+
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            T("TRY AGAIN LATER", palette.alert, 13.sp, FontWeight.Bold, TextAlign.Center)
+            T("BACK", palette.inkDim, 10.2.sp, FontWeight.Bold, TextAlign.Center)
         }
     }
 }

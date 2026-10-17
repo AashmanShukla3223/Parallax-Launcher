@@ -23,6 +23,8 @@ enum class RazrView {
     PHONEBOOK,
     /** Call / Message / Copy sheet for the highlighted contact. */
     PHONEBOOK_ACTIONS,
+    /** No SIM: the number was refused because only emergency calls work. */
+    NO_SIM,
     NOTEPAD,
     IN_CALL,
     INCOMING,

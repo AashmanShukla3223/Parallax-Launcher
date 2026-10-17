@@ -79,6 +79,8 @@ import com.parallax.parallaxlauncher.core.telecom.TonePlayer
 import com.parallax.parallaxlauncher.core.telecom.VintageCarrierResolver
 import com.parallax.parallaxlauncher.core.telemetry.TelemetryService
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrAboutScreen
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrCoverInCall
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrCoverIncomingCall
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrCoverLocked
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrCoverPanel
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrCoverShell
@@ -95,6 +97,7 @@ import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrInboxList
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrKeypad
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrActionSheet
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrListScreen
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrNoSimNotice
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrMessageMenu
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrNotificationAlert
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrPixelScreen
@@ -155,6 +158,7 @@ fun RazrV3iScreen(
     var contacts by remember { mutableStateOf<List<RazrContact>>(emptyList()) }
     var contactsRequested by rememberSaveable { mutableStateOf(false) }
     var contactActionIndex by rememberSaveable { mutableIntStateOf(0) }
+    var refusedNumber by remember { mutableStateOf("") }
 
     val palette = remember(settings.razrSkin) { RazrPalette.of(settings.razrSkin) }
     val carrierName = remember { VintageCarrierResolver.resolve(context) }
@@ -255,6 +259,10 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
     val isMuted = live?.muted ?: false
     val isOnHold = live?.onHold ?: false
     val isSpeaker = live?.speaker ?: false
+    val inCall = live?.state == Call.STATE_ACTIVE
+    // Read once: simState is stable for as long as the app is running, and
+    // the strip and the dial gate must never disagree about it.
+    val simPresent = remember { hasSim(context) }
 
     val currencySymbol = remember(settings.callCurrencyIndex) {
         when (settings.callCurrencyIndex) {
@@ -323,6 +331,15 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         haptics.thud()
         val target = number.ifBlank { lastDialed }
         if (target.isBlank()) { tonePlayer.playRazrChirp(); return }
+        // Without a SIM the radio cannot carry an ordinary call. Refuse here
+        // rather than letting placeCall fail silently, but never block an
+        // emergency number.
+        if (!simPresent && !isEmergencyNumber(context, target)) {
+            refusedNumber = target
+            view = RazrView.NO_SIM
+            tonePlayer.playBusy()
+            return
+        }
         if (!hasCallPermission(context)) {
             pendingNumber = target
             perm.launch(
@@ -385,14 +402,18 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         }
     }
 
+    // One timer string, reused by the panel and the cover so the two faces of
+    // the handset never disagree about how long the call has been running.
+    val callTimerText =
+        String.format(Locale.ROOT, "%02d:%02d", callSeconds / 60, callSeconds % 60)
+
     // Drive the panel from real call state.
     LaunchedEffect(live?.state) {
         val l = live
         if (l == null) return@LaunchedEffect
         if (l.state == Call.STATE_DISCONNECTED) {
             tonePlayer.playBusy()
-            val dur = String.format(Locale.ROOT, "%02d:%02d", callSeconds / 60, callSeconds % 60)
-            toast = "ENDED - $dur - CHARGED $totalLabel"
+            toast = "ENDED - $callTimerText - CHARGED $totalLabel"
             CallManager.clearFinished()
             dialBuffer = ""
             view = RazrView.STANDBY
@@ -754,6 +775,8 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
                 tonePlayer.playRazrChirp()
             }
         RazrView.PHONEBOOK_ACTIONS -> runContactAction()
+        // Nothing to confirm on the notice; the centre key just gets rid of it.
+        RazrView.NO_SIM -> goHome()
             RazrView.MAIN_MENU -> selectMenuItem(RAZR_MAIN_MENU[menuIndex.coerceIn(RAZR_MAIN_MENU.indices)])
             RazrView.SETTINGS -> selectSettingsItem(RAZR_SETTINGS_MENU[subIndex.coerceIn(RAZR_SETTINGS_MENU.indices)])
             RazrView.TOOLS -> selectToolsItem(RAZR_TOOLS_MENU[subIndex.coerceIn(RAZR_TOOLS_MENU.indices)])
@@ -821,6 +844,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         view == RazrView.INCOMING -> "DECLINE"
         view == RazrView.STANDBY -> "INBOX"
         view == RazrView.DIALING -> "CLEAR"
+        view == RazrView.NO_SIM -> "BACK"
         view == RazrView.PHONEBOOK_ACTIONS -> "SELECT"
         else -> "BACK"
     }
@@ -902,6 +926,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
                             RazrStatusGlyphs(
                                 palette = palette,
                                 operatorName = operatorName,
+                                noSim = !simPresent,
                                 signalBars = 3,
                                 batteryPercent = telemetryState.batteryPct.coerceAtLeast(0),
                                 charging = telemetryState.charging,
@@ -912,7 +937,19 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
                                 modifier = Modifier.fillMaxWidth(),
                             )
                         }
-                        RazrTitleBar(palette, titleFor(view, isRinging, currentGame?.title ?: "Games"))
+                        // No title bar on the home screen. The stock standby
+                        // screen does not have one -- it is wallpaper, the clock
+                        // and the status strip -- and here the title only ever
+                        // read "RAZR V3i", which is the model name rather than
+                        // anything the screen is actually about. Every other
+                        // view keeps its bar, because there the caption names
+                        // the screen.
+                        if (view != RazrView.STANDBY) {
+                            RazrTitleBar(
+                                palette,
+                                titleFor(view, isRinging, currentGame?.title ?: "Games"),
+                            )
+                        }
 
                         Box(Modifier.weight(1f).fillMaxWidth()) {
                             when {
@@ -926,7 +963,8 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
                                     contactsRequested = contactsRequested,
                                     contactActionIndex = contactActionIndex,
                                     contactsBlocked = !hasContactsPermission(context),
-                                    operatorName = operatorName,
+                                    refusedNumber = refusedNumber,
+                                    noSim = !simPresent,
                                     wallpaperRes = wallpaper,
                                     apps = apps,
                                     messages = messages,
@@ -1085,7 +1123,19 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
                 ) {
                     Box(Modifier.fillMaxSize()) {
                         when {
-                            locked -> RazrCoverLocked(
+                        // A call outranks the lock prompt and the wallpaper: the
+                        // cover has to say who is calling before you decide
+                        // whether to bother opening the flip.
+                        isRinging -> RazrCoverIncomingCall(palette, connectedNumber)
+                        inCall -> RazrCoverInCall(
+                            palette = palette,
+                            number = connectedNumber,
+                            timer = callTimerText,
+                            muted = isMuted,
+                            onHold = isOnHold,
+                            speaker = isSpeaker,
+                        )
+                        locked -> RazrCoverLocked(
                                 palette = palette,
                                 onUnlock = {
                                     haptics.thud()
@@ -1096,6 +1146,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
                             else -> RazrCoverPanel(
                                 palette = palette,
                                 operatorName = operatorName,
+                                noSim = !simPresent,
                                 wallpaperRes = wallpaper,
                                 time = clockText,
                                 amPm = amPm,
@@ -1129,7 +1180,8 @@ private fun ActiveView(
     contactsRequested: Boolean,
     contactActionIndex: Int,
     contactsBlocked: Boolean,
-    operatorName: String,
+    refusedNumber: String,
+    noSim: Boolean,
     wallpaperRes: Int,
     apps: List<AppInfo>,
     messages: List<Headline>,
@@ -1164,7 +1216,6 @@ private fun ActiveView(
     when (view) {
         RazrView.STANDBY -> RazrHomeScreen(
             palette = palette,
-            operatorName = operatorName,
             wallpaperRes = wallpaperRes,
             time = clockText,
             amPm = amPm,
@@ -1212,6 +1263,8 @@ private fun ActiveView(
         // Reached only with a valid index: both the entry point and every
         // action guard on it, and BACK returns to the list. Rendering must not
         // assign state, so there is no recovery branch here.
+        RazrView.NO_SIM -> RazrNoSimNotice(palette, refusedNumber)
+
         RazrView.PHONEBOOK_ACTIONS -> contacts.getOrNull(listIndex)?.let { c ->
             RazrActionSheet(
                 palette = palette,
@@ -1348,6 +1401,69 @@ private fun Context.copyToClipboard(label: String) {
 }
 
 /**
+ * Whether a usable SIM is present.
+ *
+ * `simState` is readable without any permission, unlike the operator name, so
+ * this is safe to call anywhere. A vendor implementation that throws is treated
+ * as "SIM present": refusing calls on a device we merely failed to interrogate
+ * would be worse than letting the platform decide.
+ */
+private fun hasSim(context: Context): Boolean = try {
+    when ((context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager).simState) {
+        TelephonyManager.SIM_STATE_READY,
+        TelephonyManager.SIM_STATE_NETWORK_LOCKED,
+        TelephonyManager.SIM_STATE_PIN_REQUIRED,
+        TelephonyManager.SIM_STATE_PUK_REQUIRED,
+        -> true
+
+        else -> false
+    }
+} catch (t: Throwable) {
+    true
+}
+
+/**
+ * The SIM's own list of emergency numbers, where the platform exposes one.
+ *
+ * On API 29+ `TelephonyManager.getEmergencyNumberList()` reports the numbers
+ * the SIM and the registered network actually honour, which beats any table
+ * we ship because it reflects the country the handset is really in right now.
+ * Empty on older releases and on any vendor implementation that throws.
+ */
+private fun platformEmergencyNumbers(context: Context): Set<String> = try {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        (context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager)
+            .emergencyNumberList.orEmpty()
+            .values
+            .flatten()
+            .map { e: android.telephony.emergency.EmergencyNumber -> e.number }
+            .filter { n: String -> n.isNotBlank() }
+            .toSet()
+    } else {
+        emptySet()
+    }
+} catch (t: Throwable) {
+    emptySet()
+}
+
+/**
+ * Whether [raw] must be allowed to place with no SIM present.
+ *
+ * Checks the platform list, then the country's table, then the numbers every
+ * GSM handset carries. Someone dialling 133 in Chile or 100 in India is
+ * dialling the police, so our own no-SIM gate must not be what stops them.
+ */
+private fun isEmergencyNumber(context: Context, raw: String): Boolean {
+    val iso = try {
+        val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+        tm.simCountryIso?.takeIf { it.isNotBlank() } ?: tm.networkCountryIso
+    } catch (t: Throwable) {
+        null
+    }
+    return RazrEmergencyNumbers.isEmergency(raw, iso, platformEmergencyNumbers(context))
+}
+
+/**
  * One phonebook row. [number] is kept as dialled rather than formatted, because
  * that is what the dial line needs.
  */
@@ -1451,6 +1567,7 @@ private fun titleFor(view: RazrView, isRinging: Boolean, currentGameTitle: Strin
     view == RazrView.CALLS -> "Recent Calls"
     view == RazrView.PHONEBOOK -> "Phonebook"
     view == RazrView.PHONEBOOK_ACTIONS -> "Phonebook"
+    view == RazrView.NO_SIM -> "No SIM"
     view == RazrView.APPS_LIST -> "Games & Apps"
     view == RazrView.INBOX -> "Message Inbox"
     view == RazrView.RINGTONES -> "Ring Styles"
