@@ -116,3 +116,34 @@ The APK will be generated at `app/build/outputs/apk/debug/app-debug.apk`.
 ## CI / Automated Testing
 
 Automated builds and unit tests run on every push and pull request via [GitHub Actions](.github/workflows/android.yml). Tested on Ubuntu with JDK 17.
+
+---
+
+## License
+
+**GPL-3.0.** See [`LICENSE`](LICENSE).
+
+That means anyone distributing a modified version has to release it under
+GPL-3.0 and publish the source. Mode 7 is the point of this project, and that
+clause is what stops the RAZR work being improved and then closed off.
+
+It also includes the anti-tivoisation term (§6): if you ship a modified version
+you have to let users install a modified version on it. You cannot ship a
+locked-down Mode 7 under this licence.
+
+One-way door — everything released from here is GPL-3.0 permanently, including
+code written later. Relicensing isn't possible after publication.
+
+### Reference material is *not* covered
+
+The files in [`Razr V3i References/`](Razr%20V3i%20References/) are Motorola
+documentation and imagery: the manual, the spec sheet, product photos and an
+audio clip. They are **not** part of the licensed work — see [`NOTICE`](NOTICE).
+They are committed unmodified so the Mode 7 rebuild is reproducible, and they
+will be inherited by any fork, so consider that before redistributing.
+
+### Beta testing
+
+Looking for people to actually run this, not just try it. Known bugs are
+listed in [`TESTING.md`](TESTING.md), including the ones I know are broken,
+and reports go through an issue template that asks for a screenshot.

@@ -76,6 +76,12 @@ Gate the individual **steps** instead — the current `release` job reads the se
 
 Corollary: **verify workflow changes by watching a real run**, never by parsing the YAML locally.
 
+## License
+
+**GPL-3.0** (`LICENSE`, with `NOTICE` for the third-party material). Consequence for anyone working here: **do not report a missing licence** — it was added deliberately. Code released from this repo is GPL-3.0 permanently, so do not copy in code whose licence is incompatible, and do not relicense existing files.
+
+`Razr V3i References/` is **not** covered by the GPL. Those are Motorola's files, committed for reproducibility, and they will be inherited by forks. Do not edit them, and do not treat them as project-owned.
+
 ## Release signing
 
 The release key is RSA4096, 10000 days, alias `parallax`, `CN=Parallax Launcher, OU=Parallax, O=Parallax, C=IN`. Its certificate SHA-256 digest is:

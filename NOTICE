@@ -1,0 +1,38 @@
+Parallax Launcher
+Copyright (C) 2026 Aashman Shukla
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see <https://www.gnu.org/licenses/>.
+
+---
+
+THIRD-PARTY AND NON-CODE MATERIALS
+
+The files in "Razr V3i References/" are NOT covered by the GPL. They are
+Motorola / Motorola Mobility documentation and imagery, included unmodified for
+reference only:
+
+    Razr V3i Specs.docx
+    User Manual.pdf
+    Front open, Front closed.jpeg
+    Sea_And_Mountain-590322-mobiles24.jpeg
+    V3i Inner Display.jpeg
+    keypad close up.jpeg
+    razr_v3_original.mp3
+
+This project holds no rights in those files and cannot relicense them. They are
+not part of the licensed work. If you fork this repository they will come along
+in the history and the working tree, and any redistribution of this project
+should consider whether that is appropriate.
+
+The GPL covers the source code in app/src/ and the project's own documentation
+(README.md, AGENTS.md, TESTING.md, RAZR_V3I_SPECS.md).
