@@ -2,12 +2,14 @@ package com.parallax.parallaxlauncher.ui.modes.razr.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -181,6 +183,15 @@ fun RazrTitleBar(
     }
 }
 
+/**
+ * The soft-key bar under the internal display.
+ *
+ * The captions are drawn here but the physical keys live on the deck: the two
+ * flank brackets and the rocker's centre. That mapping is correct for the
+ * hardware, but it left the words themselves dead -- tapping "SEND" on the
+ * display did nothing, which reads as a broken UI. So the captions are live too
+ * when handlers are supplied.
+ */
 @Composable
 fun RazrSoftKeyBar(
     palette: RazrPalette,
@@ -188,6 +199,9 @@ fun RazrSoftKeyBar(
     center: String,
     right: String,
     modifier: Modifier = Modifier,
+    onLeft: (() -> Unit)? = null,
+    onCenter: (() -> Unit)? = null,
+    onRight: (() -> Unit)? = null,
 ) {
     Row(
         modifier
@@ -198,16 +212,29 @@ fun RazrSoftKeyBar(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SoftLabel(palette.softInk, left, Modifier.width(52.dp), Alignment.CenterStart)
+        SoftLabel(palette.softInk, left, Modifier.width(52.dp), Alignment.CenterStart, onLeft)
         // The stock menu indicator sits dead centre in every soft-key bar.
-        SoftLabel(palette.softInk, center.ifBlank { "☰" }, Modifier.weight(1f), Alignment.Center)
-        SoftLabel(palette.softInk, right, Modifier.width(52.dp), Alignment.CenterEnd)
+        SoftLabel(
+            palette.softInk, center.ifBlank { "☰" }, Modifier.weight(1f), Alignment.Center, onCenter,
+        )
+        SoftLabel(palette.softInk, right, Modifier.width(52.dp), Alignment.CenterEnd, onRight)
     }
 }
 
 @Composable
-private fun SoftLabel(color: Color, text: String, modifier: Modifier, align: Alignment) {
-    Box(modifier, contentAlignment = align) {
+private fun SoftLabel(
+    color: Color,
+    text: String,
+    modifier: Modifier,
+    align: Alignment,
+    onClick: (() -> Unit)? = null,
+) {
+    Box(
+        modifier
+            .fillMaxHeight()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+        contentAlignment = align,
+    ) {
         Text2(
             text = text,
             color = color,

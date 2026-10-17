@@ -882,10 +882,21 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         if (locked) return
         when (view) {
             RazrView.GAME, RazrView.GAMES -> { playingGameId = null; goHome() }
-            RazrView.STANDBY -> setFlap(false)
+            // There were two STANDBY branches and the first won, so the caption
+            // said INBOX while the key closed the flip and the INBOX arm below
+            // was dead code. Closing the flap is the hinge's job and BACK's, so
+            // the caption is the authority here.
             RazrView.STANDBY -> { view = RazrView.INBOX; listIndex = 0 }
             RazrView.IN_CALL -> CallManager.mute(!isMuted)
             RazrView.INCOMING -> CallManager.reject()
+            // The caption here is CLEAR and the screen says "Clear erases the
+            // last digit", but there was no DIALING branch, so it fell through
+            // to goHome() and threw away the whole number along with the screen.
+            RazrView.DIALING ->
+                if (dialBuffer.isNotEmpty()) {
+                    dialBuffer = dialBuffer.dropLast(1)
+                    tonePlayer.playRazrChirp()
+                }
             else -> goHome()
         }
     }
@@ -1111,7 +1122,15 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
                             }
                         }
 
-                        RazrSoftKeyBar(palette, left = softLeft, center = softCenter, right = softRight)
+                        RazrSoftKeyBar(
+                            palette = palette,
+                            left = softLeft,
+                            center = softCenter,
+                            right = softRight,
+                            onLeft = { onSoftLeft() },
+                            onCenter = { onCenter() },
+                            onRight = { onSoftRight() },
+                        )
                     }
                 }
                     }
