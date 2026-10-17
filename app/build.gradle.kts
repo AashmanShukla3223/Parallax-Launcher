@@ -55,8 +55,11 @@ android {
         applicationId = "com.parallax.parallaxlauncher"
         minSdk = 27
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0.0"
+        // versionCode must strictly increase for Android to accept a build as
+        // an update over an installed one. v1.0.0 shipped as 1 and has already
+        // been downloaded, so v1.0.1 has to be 2.
+        versionCode = 2
+        versionName = "1.0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
