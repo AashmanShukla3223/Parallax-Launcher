@@ -182,9 +182,17 @@ Reference material lives in `Razr V3i References/` (spec docx, 128-page manual P
 
 ### Current state
 
-`main` builds and all three CI jobs are green, including the signed release APK (v2 scheme, verified with `aapt2 dump badging` and `apksigner verify`).
+`main` builds and all three CI jobs are green, including the signed release APK (v2 scheme, verified with `aapt2 dump badging` and `apksigner verify`). v1.0.0 is published from tag `v1.0.0`, carrying the CI-built `app-release.apk`.
 
-The keypad still renders as a grid of closed boxes rather than one continuous etched sheet with three channels — see the bullet above. `AGENTS.md` flags separate key tiles as wrong, so this is the main remaining visual gap versus the reference photos.
+**The keypad is still the main outstanding gap.** It renders as a grid of closed boxes, each key its own rounded border, rather than one continuous etched sheet with three channels. Measured off a full-resolution screenshot on a real device (1080x2340 screen), the key boxes occupy:
+
+| Column | x range | width |
+|---|---|---|
+| left | 159–389 | 230px |
+| centre | 429–650 | **221px** |
+| right | 690–920 | 230px |
+
+with row centres at y = 1768, 1886, 2003, 2119. The centre column is only 9px narrower than the outer two, so the waisted silhouette — which on the real handset comes from that channel being substantially narrow — barely registers. Those are the numbers to hit when fixing it, not fresh eyeballing.
 
 ## Conventions
 
