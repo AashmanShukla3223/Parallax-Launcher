@@ -1,0 +1,45 @@
+name: Feature request
+description: Something you would like it to do
+title: "[Mode N] short description"
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What would you like it to do?
+      description: "What you want, rather than how you would implement it. That part is mine."
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why?
+      description: "What is it about the current behaviour that is wrong for you?"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Which mode?
+      options:
+        - "1 - Industrial Rig"
+        - "2 - Celestial Orbit OS"
+        - "3 - Swiss Editorial"
+        - "4 - Cyberdeck HUD"
+        - "5 - Cinecam Rangefinder"
+        - "6 - Telecom Rotary"
+        - "7 - RAZR V3i"
+        - "Applies to the whole app"
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        If your idea is about making Mode 7 more faithful to the real RAZR V3i,
+        a **photo of the actual handset** is worth a great deal more than a
+        written description. I have been rebuilding it from a small set of
+        reference photographs and guessing the details, which is exactly where
+        it goes wrong.

@@ -1,0 +1,107 @@
+name: Bug report
+description: Something is visibly wrong, or behaves unexpectedly
+title: "[Mode N] short description"
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing Parallax. This project is verified by looking at
+        screenshots, so **a screenshot is worth more than a paragraph**. If a
+        control appears to do nothing, a picture of the screen after tapping it
+        usually tells me more than any amount of description.
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Which mode?
+      description: "Modes 1-6 are launcher screens. Mode 7 is the Motorola RAZR V3i rebuild."
+      options:
+        - "1 - Industrial Rig"
+        - "2 - Celestial Orbit OS"
+        - "3 - Swiss Editorial"
+        - "4 - Cyberdeck HUD"
+        - "5 - Cinecam Rangefinder"
+        - "6 - Telecom Rotary"
+        - "7 - RAZR V3i"
+        - "Not mode-specific"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: state
+    attributes:
+      label: What state was it in?
+      options:
+        - "Closed / outer display (the 'jail')"
+        - "Open, on the home screen"
+        - "Dialling"
+        - "In a call"
+        - "Inbox / messages"
+        - "Phonebook"
+        - "Settings (CFG)"
+        - "Other"
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot
+      description: "Drag the image straight into this box and GitHub will upload and link it."
+      placeholder: "Paste an image here, or a link to one you already uploaded."
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+      placeholder: "Tapping the green call key with no SIM should refuse and show NO SIM CARD AVAILABLE."
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What actually happened?
+      description: "What you tapped, and what the screen did instead."
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: Device and Android version
+      description: "Settings > About > Build number. I need this to reproduce."
+      placeholder: "Samsung SM-S731N, Android 16 (API 36)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: sim
+    attributes:
+      label: Do you have a SIM?
+      description: "This matters a lot. Mode 7's phone features behave very differently with and without one."
+      options:
+        - "Yes, active SIM with service"
+        - "Yes, SIM inserted but no service / out of coverage"
+        - "No SIM"
+        - "eSIM"
+    validations:
+      required: true
+
+  - type: textarea
+    id: install
+    attributes:
+      label: Where did your build come from?
+      description: "A release APK from the GitHub releases, or a debug build someone built for you? This matters because a debug-signed build cannot be upgraded over a release-signed one."
+      placeholder: "GitHub release v1.0.1"
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: "Optional. Themes or wallpacks you were using, whether you set it as your default launcher, and so on."
