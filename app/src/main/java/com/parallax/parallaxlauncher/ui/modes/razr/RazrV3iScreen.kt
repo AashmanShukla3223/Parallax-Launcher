@@ -951,7 +951,11 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
                                 palette = palette,
                                 operatorName = operatorName,
                                 noSim = !simPresent,
-                                signalBars = 3,
+                                // Real bars, not a decorative constant: with no
+                                // service they read as empty, which is what
+                                // makes the NO SVC caption legible.
+                                noService = !telemetryState.hasService,
+                                signalBars = telemetryState.signalBars.coerceIn(0, 4),
                                 batteryPercent = telemetryState.batteryPct.coerceAtLeast(0),
                                 charging = telemetryState.charging,
                                 unreadMessages = unread,
@@ -1171,6 +1175,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
                                 palette = palette,
                                 operatorName = operatorName,
                                 noSim = !simPresent,
+                                noService = !telemetryState.hasService,
                                 wallpaperRes = wallpaper,
                                 time = clockText,
                                 amPm = amPm,

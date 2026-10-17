@@ -86,6 +86,7 @@ fun RazrStatusGlyphs(
     palette: RazrPalette,
     operatorName: String = RazrOperators.UNKNOWN_OPERATOR,
     noSim: Boolean = false,
+    noService: Boolean = false,
     signalBars: Int,
     batteryPercent: Int,
     charging: Boolean,
@@ -124,15 +125,20 @@ fun RazrStatusGlyphs(
         if (noSim) {
             T("NO SIM - EMERG. CALLS ONLY", palette.alert, 8.sp, FontWeight.Bold, maxLines = 1)
         } else {
+            // The operator is named even with no service: the handset still
+            // knows whose SIM it is holding. What it cannot do is connect, so
+            // the bars are empty and the gap is spelled out rather than left
+            // to be misread as weak signal.
             T(operatorName.take(9).uppercase(Locale.ROOT), ink, 8.7.sp, FontWeight.Bold)
-            T("▧", ink, 8.7.sp)
+            if (noService) T("NO SVC", palette.alert, 8.sp, FontWeight.Bold, maxLines = 1)
+            else T("▧", ink, 8.7.sp)
         }
         if (unreadMessages > 0) {
             T("✉", palette.badgeInk, 10.2.sp, FontWeight.Bold)
             T(unreadMessages.toString(), palette.badgeInk, 8.7.sp, FontWeight.Bold)
         }
         Spacer(Modifier.weight(1f))
-        if (!noSim) {
+        if (!noSim && !noService) {
             T(ringStyleName.take(3).uppercase(Locale.ROOT), ink, 8.sp, FontWeight.Bold)
         }
         // Battery: continuous 1-100% fill, red at or below 20%, green + bolt
@@ -839,6 +845,7 @@ fun RazrCoverPanel(
     palette: RazrPalette,
     operatorName: String = RazrOperators.UNKNOWN_OPERATOR,
     noSim: Boolean = false,
+    noService: Boolean = false,
     wallpaperRes: Int,
     time: String,
     amPm: String,
@@ -885,7 +892,11 @@ fun RazrCoverPanel(
             FontWeight.Bold,
             maxLines = 1,
         )
-                if (unread > 0) T("✉$unread", Color(0xFFFFD34D), 8.7.sp, FontWeight.Bold)
+                if (noService) {
+                    T("NO SVC", Color(0xFFFF6B5E), 8.7.sp, FontWeight.Bold, maxLines = 1)
+                } else if (unread > 0) {
+                    T("✉$unread", Color(0xFFFFD34D), 8.7.sp, FontWeight.Bold)
+                }
                 T("▮", Color.White, 8.7.sp, FontWeight.Bold)
             }
 

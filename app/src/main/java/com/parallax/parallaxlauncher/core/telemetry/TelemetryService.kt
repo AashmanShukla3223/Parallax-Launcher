@@ -7,6 +7,8 @@ import android.content.IntentFilter
 import android.net.TrafficStats
 import android.os.BatteryManager
 import android.os.SystemClock
+import android.telephony.ServiceState
+import android.telephony.TelephonyManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -28,6 +30,19 @@ data class Telemetry(
     val ramTotalMb: Int = -1,
     val rxKbps: Float = 0f,
     val txKbps: Float = 0f,
+    /** Signal bars 0..4 as the handset would draw them. 0 means no service. */
+    val signalBars: Int = 0,
+    /**
+     * Whether the handset has usable service.
+     *
+     * Distinct from "has a SIM": a handset can hold a perfectly good SIM while
+     * being out of coverage, in which case it names the operator but cannot
+     * complete a call. The status strip has to tell those apart, because showing
+     * full bars while calls cannot connect is simply wrong.
+     */
+    val hasService: Boolean = false,
+    /** True when the radio is registered but only for emergency traffic. */
+    val emergencyOnly: Boolean = false,
 )
 
 class TelemetryService(context: Context) {
@@ -50,6 +65,7 @@ class TelemetryService(context: Context) {
                 val level = i?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
                 val scale = i?.getIntExtra(BatteryManager.EXTRA_SCALE, 100) ?: 100
                 val status = i?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+                val signal = readSignal()
                 val am = ctx.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
                 val mi = ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }
 
@@ -75,6 +91,9 @@ class TelemetryService(context: Context) {
                     ramTotalMb = (mi.totalMem / 1_048_576L).toInt(),
                     rxKbps = rxK.coerceAtLeast(0f),
                     txKbps = txK.coerceAtLeast(0f),
+                    signalBars = signal.first,
+                    hasService = signal.second,
+                    emergencyOnly = signal.third,
                 )
                 delay(1000)
             }
@@ -82,6 +101,42 @@ class TelemetryService(context: Context) {
     }
 
     fun stop() = scope.coroutineContext[kotlinx.coroutines.Job]?.cancel()
+
+    private companion object {
+        const val SERVICE_STATE_IN_SERVICE = 0
+        const val SERVICE_STATE_EMERGENCY_ONLY = 2
+    }
+
+    /**
+     * Signal as (bars, hasService, emergencyOnly).
+     *
+     * Bars follow the same five-step ladder the platform reports through
+     * `SignalStrength.getLevel`, and are forced to zero whenever there is no
+     * service: an out-of-service registration means the bars are meaningless,
+     * and drawing them filled is the part users notice first.
+     */
+    private fun readSignal(): Triple<Int, Boolean, Boolean> = runCatching {
+        val tm = ctx.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+        val ss = tm.serviceState
+            ?: return@runCatching Triple(0, false, false)
+
+        // ServiceState's STATE_* constants are not visible against this compile
+        // SDK, but their values are fixed by the AOSP contract:
+        // 0 IN_SERVICE, 1 OUT_OF_SERVICE, 2 EMERGENCY_ONLY, 3 POWER_OFF.
+        val registered = ss.state == SERVICE_STATE_IN_SERVICE
+        val emergencyOnly = ss.state == SERVICE_STATE_EMERGENCY_ONLY
+        // Emergency-only registration still lets emergency calls through, so
+        // it counts as usable service for the purposes of the strip.
+        val hasService = registered || emergencyOnly
+        if (!hasService) return@runCatching Triple(0, false, emergencyOnly)
+
+        val level = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            tm.signalStrength?.level ?: 0
+        } else {
+            0
+        }
+        Triple(level.coerceIn(0, 4), true, emergencyOnly)
+    }.getOrDefault(Triple(0, false, false))
 
     /** Max current core freq from sysfs; -1 if blocked. */
     private fun readCpuMhz(): Int = runCatching {
