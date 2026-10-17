@@ -38,21 +38,66 @@ aapt2  dump badging app/build/outputs/apk/debug/app-debug.apk   # parses manifes
 apksigner verify app/build/outputs/apk/debug/app-debug.apk     # signature scheme
 ```
 
-The `release` variant is **unsigned** (`app-release-unsigned.apk`) and cannot be installed — always use debug.
+`apksigner verify` prints nothing on success; check the exit code (`$?`). An unsigned release prints a complaint and exits non-zero.
+
+The `release` variant is signed when signing material is configured (see Release signing below) and is otherwise an `app-release-unsigned.apk` that cannot be installed. For day-to-day device installs use `assembleDebug`.
 
 `local.properties` is gitignored and currently points at `sdk.dir=D\:\Games\Android\Sdk`. CI does not use it.
 
 ## Testing
 
-There are **no real tests**. `app/src/test/.../ExampleUnitTest.kt` only asserts `2 + 2 == 4`. `testDebugUnitTest` is therefore a compile-level smoke test, not behavioural verification. There is no instrumentation test that runs in CI either.
+`testDebugUnitTest` is a compile-level smoke test only: `app/src/test/.../ExampleUnitTest.kt` asserts `2 + 2 == 4`. A green one proves nothing about behaviour.
 
-Consequence: correctness must be verified by building and looking at the app. Don't claim a change is "tested" on the strength of a green `testDebugUnitTest`.
+There *is* an instrumentation test that runs in CI — `app/src/androidTest/.../ModeSmokeTest.kt` walks all seven modes on an emulator and asserts each activity reaches RESUMED/STARTED and does not finish. It is still not behavioural verification: Mode 7 gets a lifecycle assertion only (it requests `ROLE_DIALER` on compose, so Espresso cannot drive it), and nothing captures a screenshot.
+
+Consequence: correctness must be verified by building and looking at the app. Don't claim a change is "tested" on the strength of a green `testDebugUnitTest` or a green emulator job.
 
 ## CI
 
-`.github/workflows/android.yml` — "Android CI", on push/PR to `main`/`master` + manual dispatch. ubuntu-latest, JDK 17 (Temurin), then `testDebugUnitTest` → `assembleDebug` → upload APK artifact.
+`.github/workflows/android.yml` — "Android CI", on push/PR to `main`/`master` + manual dispatch. Three jobs, all `ubuntu-latest`, JDK 17 (Temurin):
 
-Note the JDK mismatch with the local toolchain (17 in CI vs pinned 25 locally); it resolves via foojay auto-provisioning. If CI fails on toolchain resolution, that's the first thing to check.
+| Job | Does |
+|---|---|
+| `build` | `testDebugUnitTest` → `assembleDebug` → uploads `parallax-launcher-debug` |
+| `release` | restore keystore from secret → `assembleRelease` → verify signature → uploads `parallax-launcher-release` |
+| `emulator` | `connectedDebugAndroidTest` via `reactivecircus/android-emulator-runner` |
+
+Note the JDK mismatch with the local toolchain (17 in CI vs pinned 25 locally); it resolves via foojay auto-provisioning. If CI fails on toolchain resolution, that's the first thing to check. The `emulator` job needs KVM, which the dev machines do not expose, so it has to run on the runner.
+
+Artifacts expire 90 days after the run. Anything you intend to publish has to be downloaded before then.
+
+### A workflow file is not compiled by anything you can run
+
+**Never gate a whole job on `secrets`.** A job-level `if: ${{ secrets.X != '' }}` makes Actions reject the *entire workflow file*: the run is created, no jobs start, and it reports "This run likely failed because of a workflow file issue". Commit `a4728f0` did this and killed CI; the workflow parsed fine in Python with every key schema-valid, so local checks passed while the pipeline was dead. The `secrets` context is not available in `jobs.<id>.if` at all.
+
+Gate the individual **steps** instead — the current `release` job reads the secret in one unconditional "Detect signing key" step and gates the five signing steps on `steps.signing.outputs.available`. A fork has no secrets, so that step emits `::notice::` and the job passes without producing a release APK.
+
+Corollary: **verify workflow changes by watching a real run**, never by parsing the YAML locally.
+
+## Release signing
+
+The release key is RSA4096, 10000 days, alias `parallax`, `CN=Parallax Launcher, OU=Parallax, O=Parallax, C=IN`. Its certificate SHA-256 digest is:
+
+```
+1972fac3889a398199aa503fef7dd5c4970548608b45bbae8dbf5bf4c2babd82
+```
+
+That digest is the load-bearing number. Android only offers an update over an installed app if the signing certificate matches, so **anything published under it is permanent** — a new key means new installs only, and existing users cannot upgrade.
+
+**Back the keystore and its passwords up off this machine.** `parallax-release.jks` and `keystore.properties` are both gitignored and exist nowhere else. Losing them means the app can never be updated by anyone.
+
+`app/build.gradle.kts` takes signing material from `keystore.properties` at the repo root if present (how a developer machine signs), otherwise from `ANDROID_*` environment variables (which CI populates from secrets). With neither it leaves the release unsigned and logs a warning naming both sources.
+
+Four repository secrets:
+
+| Secret | Contents |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | base64 of `parallax-release.jks` |
+| `ANDROID_STORE_PASSWORD` | keystore password |
+| `ANDROID_KEY_ALIAS` | `parallax` |
+| `ANDROID_KEY_PASSWORD` | key password |
+
+Never commit the key or the passwords, and never paste the password into a prompt, a commit, or a log.
 
 ## Architecture
 
@@ -135,9 +180,11 @@ Reference material lives in `Razr V3i References/` (spec docx, 128-page manual P
 
 > **`isDeviceUnlocked()` does not resolve against this compile SDK.** Use `KeyguardManager.isKeyguardLocked()` instead. If you need the device-unlocked check, don't reach for the former.
 
-### Current state: builds clean
+### Current state
 
-`assembleDebug` and `testDebugUnitTest` both pass. Verified with `aapt2 dump badging` and `apksigner verify --verbose` (v2 scheme, 1 signer).
+`main` builds and all three CI jobs are green, including the signed release APK (v2 scheme, verified with `aapt2 dump badging` and `apksigner verify`).
+
+The keypad still renders as a grid of closed boxes rather than one continuous etched sheet with three channels — see the bullet above. `AGENTS.md` flags separate key tiles as wrong, so this is the main remaining visual gap versus the reference photos.
 
 ## Conventions
 

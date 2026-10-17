@@ -41,9 +41,12 @@ jobs:
 
   # Signed release APK.
   #
-  # Gated on the repository secret existing, so a fork or a fresh clone skips
-  # this job instead of failing on a missing key. The debug artifact above is
-  # produced either way.
+  # The signing key is a repository secret, and a fork never receives it. The
+  # gate therefore lives on the individual steps, not on the job: a job-level
+  # `if` cannot read the secrets context at all, and putting one there made
+  # Actions reject the entire workflow file rather than skip this job. With the
+  # gate on the steps, a fork skips them, says so, and the job still goes green.
+  # The debug artifact above is produced either way.
   release:
     name: Signed release APK
     runs-on: ubuntu-latest
@@ -53,7 +56,23 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      # The only step that reads the secret, and the only one that runs
+      # unconditionally. Everything else is gated on its output, so there is a
+      # single place to change if the secret is ever renamed.
+      - name: Detect signing key
+        id: signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Skipping the signed release::ANDROID_KEYSTORE_BASE64 is not set on this repository (expected on forks). The signing steps below are skipped and the job passes without producing a release APK."
+          fi
+
       - name: Set up JDK 17
+        if: steps.signing.outputs.available == 'true'
         uses: actions/setup-java@v4
         with:
           java-version: '17'
@@ -61,11 +80,13 @@ jobs:
           cache: gradle
 
       - name: Grant execute permission for gradlew
+        if: steps.signing.outputs.available == 'true'
         run: chmod +x gradlew
 
       # The keystore arrives base64 encoded so the signing key never enters
       # version control under any circumstance.
       - name: Restore signing key
+        if: steps.signing.outputs.available == 'true'
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
@@ -74,6 +95,7 @@ jobs:
           test -s "$RUNNER_TEMP/release.jks" || { echo "keystore decode failed"; exit 1; }
 
       - name: Assemble signed release APK
+        if: steps.signing.outputs.available == 'true'
         env:
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/release.jks
           ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
@@ -84,6 +106,7 @@ jobs:
       # An unsigned release is the exact failure this project had before, and
       # it looks fine on disk. Prove the signature rather than assume it.
       - name: Verify the release APK is signed
+        if: steps.signing.outputs.available == 'true'
         run: |
           set -euo pipefail
           APK=$(ls -1 app/build/outputs/apk/release/*.apk | head -1)
@@ -94,6 +117,7 @@ jobs:
             dump badging "$APK" | head -1
 
       - name: Upload signed release APK
+        if: steps.signing.outputs.available == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: parallax-launcher-release
