@@ -1,6 +1,48 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+}
+
+// Release signing.
+//
+// Reads keystore.properties from the repo root when present, which is how a
+// developer machine signs. Both that file and the keystore are gitignored, so
+// the key never enters version control. CI has no such file and instead gets
+// the same four values from environment variables, which the workflow
+// populates from repository secrets.
+//
+// If neither source is present the release variant is simply left unsigned
+// rather than failing the build, so a fresh clone can still compile. That
+// means `assembleRelease` produces an un-installable APK, which is exactly what
+// it did before this existed -- a silent failure is worse than a loud one, so
+// the build logs a warning.
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
+}
+
+fun signingValue(localKey: String, envKey: String): String? =
+    (keystoreProperties.getProperty(localKey) ?: System.getenv(envKey))?.takeIf { it.isNotBlank() }
+
+val releaseStoreFile = signingValue("storeFile", "ANDROID_KEYSTORE_PATH")
+val releaseStorePassword = signingValue("storePassword", "ANDROID_STORE_PASSWORD")
+val releaseKeyAlias = signingValue("keyAlias", "ANDROID_KEY_ALIAS")
+val releaseKeyPassword = signingValue("keyPassword", "ANDROID_KEY_PASSWORD")
+
+val hasReleaseSigning =
+    releaseStoreFile != null && releaseStorePassword != null &&
+        releaseKeyAlias != null && releaseKeyPassword != null
+
+if (!hasReleaseSigning) {
+    logger.lifecycle(
+        "WARNING: no release signing configured (looked for keystore.properties " +
+            "and the ANDROID_* environment variables). assembleRelease will " +
+            "produce an unsigned APK that cannot be installed."
+    )
 }
 
 android {
@@ -19,8 +61,22 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = rootProject.file(releaseStoreFile!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             optimization {
                 enable = true
                 packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")

@@ -43,7 +43,10 @@ private val Steel = Color(0xFF2A2B2F)
 private data class Step(val tag: String, val title: String, val body: String)
 
 private val steps = listOf(
-    Step("01 / 03", "PARALLAX", "Five instrument panels for your home screen. Industrial Rig is online. More modes unlock soon."),
+    // All seven modes ship and none are locked behind anything, so this used to
+    // lie twice over: it said five, and promised more "soon". Industrial Rig is
+    // mode one and the rest are reachable immediately via the MODE chip.
+    Step("01 / 03", "PARALLAX", "Seven instrument panels for your home screen. Industrial Rig is online. Tap the MODE chip to switch between all seven."),
     Step("02 / 03", "TACTILE BY DESIGN", "Spin the dial to select an app. Flip the arm switch. Press LAUNCH. Every action has a detent and a thud."),
     Step("03 / 03", "ACTIVATE", "Set Parallax as your default home app. You can revert anytime in Settings > Apps > Default apps > Home app."),
 )

@@ -17,3 +17,9 @@ local.properties
 # Kotlin build-session scratch: compiler error logs and session files.
 # Project-local tooling metadata, not source.
 /.kotlin
+
+# Release signing. The keystore and its passwords must never enter version
+# control -- losing or leaking them means you can no longer ship updates.
+/keystore.properties
+*.jks
+*.keystore
