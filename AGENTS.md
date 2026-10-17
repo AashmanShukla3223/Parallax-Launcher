@@ -192,12 +192,14 @@ Reference material lives in `Razr V3i References/` (spec docx, 128-page manual P
 
 **Emergency numbers** — audited against Wikipedia plus a second source for every suspicious row; 20 corrections applied (Turkmenistan's obsolete Soviet codes collapsing to the bare digits 1–4 was the worst, plus Niue/Tokelau international numbers transcribed as local codes, Thailand missing 1669, and ten missing countries). Turkey, Bangladesh, Qatar, Saudi and UAE per-service codes were deliberately left alone — plausible but unconfirmed against a national source.
 
+- **The middle soft key is a legend, not a touch target — and the whole panel is.** The soft-key bar under the display draws `CLEAR / SEND / CANCEL`, but nothing inside the upper half accepts touches: tapping the words does nothing, and adding `clickable` to `RazrSoftKeyBar` does not fix it (verified on device). The deck below is the only input surface — flank brackets, rocker, digits. The hinge sits *outside* `RazrUpperShell` and does respond, which is the clue: the blocker is inside `RazrPixelScreen`, whose subpixel `Canvas` is the last child and covers the whole panel. Root cause is not yet pinned down; do not add handlers to `RazrSoftKeyBar` and assume they work.
+- **The deck is the input surface, so hit targets must be measured, not eyeballed.** Deck hit targets are fractions of the deck box, which on a 1080x2340 screen spans roughly y 1360–2082. A tap 10px outside a target silently does nothing or hits a neighbour, which reads as "the key is broken". Derive coordinates from a full-resolution screenshot before concluding a control is dead.
+
 **Still outstanding:**
 
-- **SIM insertion/removal has never been seen working.** The status strip correctly reports `NO SIM` / `NO SVC` on a genuinely SIM-less device, but a physical swap is the only way to verify the transition.
-- **The middle soft key is a legend, not a touch target.** The dial screen draws `CLEAR / SEND / CANCEL`, but only the flank keys and the rocker centre are pressable; `SEND` is the rocker centre, which routes to `startCall`. Tapping the word "SEND" itself does nothing. Coherent with the hardware layout, but it reads as a dead label.
-- **Play Store signing/track** — not started. The APK is signed directly with the project key.
-- **CI is intermittently flaky** in GitHub's OIDC step, before any build.
+- **SIM insertion/removal has never been seen working.** The status strip correctly reports `NO SIM` / `NO SVC` on a genuinely SIM-less device, but a physical swap is the only way to verify the transition. Probed: `cmd phone` exposes no SIM-state manipulation (only ims/uce/cc/gba/src/restart-modem) and there is no emulator transport for `adb emu gsm`, so there is no adb route at all.
+- **Play Store signing/track** — not started. The APK is signed directly with the project key. This needs a real developer account and a review process, so it is not repo work.
+- **CI is intermittently flaky** in GitHub's OIDC step, before any build. — **Resolved, and it was never intermittent.** That failure was in `testlab.yml`, not `android.yml`, and the cause was four unset repository variables (`GCP_WIF_PROVIDER`, `GCP_TESTLAB_SERVICE_ACCOUNT`, `GCP_PROJECT_ID`, `GCP_RESULTS_BUCKET`) — the one-time GCP setup in `docs/test-lab-setup.md` had never been done. That job now checks the variables first and skips with a notice naming them; verified by dispatching it (green, all gcloud steps skipped). Consequently **Firebase Test Lab has never actually run** — the emulator job in `Android CI` is the real coverage until someone does that setup.
 
 ## Conventions
 

@@ -1122,15 +1122,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
                             }
                         }
 
-                        RazrSoftKeyBar(
-                            palette = palette,
-                            left = softLeft,
-                            center = softCenter,
-                            right = softRight,
-                            onLeft = { onSoftLeft() },
-                            onCenter = { onCenter() },
-                            onRight = { onSoftRight() },
-                        )
+                        RazrSoftKeyBar(palette, left = softLeft, center = softCenter, right = softRight)
                     }
                 }
                     }
