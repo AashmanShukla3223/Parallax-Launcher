@@ -44,10 +44,12 @@ private val BracketBlue = Color(0xFF3A5BFF)
  *
  * The key insight from the reference photograph is that the keypad is **not** a
  * grid of separate key tiles. It is one continuous sheet of brushed metal with
- * the electric-blue laser etch cut into it. The etch forms three vertical
- * channels — outer two wide, centre one narrow — and each key is simply the gap
- * bracketed by a horizontal etch line across its channel. That narrow centre
- * channel is what gives the V3i deck its waisted silhouette.
+ * the electric-blue laser etch cut into it. There are no vertical walls between
+ * the columns at all — a single groove runs left to right across each row
+ * boundary, stepping down into a narrow centre channel before returning to the
+ * outer ones. That narrow centre channel is what gives the V3i deck its waisted
+ * silhouette, and the step is what makes it read as one sheet rather than twelve
+ * buttons.
  *
  * Legends mirror at the centre column exactly as on the handset: the letter
  * group sits to the *right* of 2, 5 and 8 but to the *left* of 3, 6 and 9, with
@@ -99,14 +101,10 @@ fun RazrKeypad(
             // ---- Legends -------------------------------------------------------
             // Digit sits low in its cell; the letter group is small and raised.
             RazrKeypadLayout.rows.forEachIndexed { rowIndex, row ->
-                val cellY = keyRowTop(rowIndex)
+                val cellY = Channels.rowTop(rowIndex)
                 row.forEachIndexed { colIndex, key ->
-                    val cellX = when (colIndex) {
-                        0 -> 0.065f
-                        1 -> 0.375f
-                        else -> 0.675f
-                    }
-                    val cellW = channelWidth(colIndex)
+                    val cellX = Channels.start(colIndex)
+                    val cellW = Channels.width(colIndex)
                     KeyLegend(
                         key = key,
                         tint = palette.legend,
@@ -114,7 +112,7 @@ fun RazrKeypad(
                         modifier = Modifier
                             .align(Alignment.TopStart)
                             .offset(x = w * cellX, y = h * cellY)
-                            .size(w * cellW, h * 0.112f),
+                            .size(w * cellW, h * Channels.ROW_HEIGHT),
                     )
                 }
             }
@@ -145,12 +143,12 @@ fun RazrKeypad(
 
                 // 12 keys.
                 RazrKeypadLayout.rows.forEachIndexed { rowIndex, row ->
-                    val top = 0.455f + rowIndex * 0.1325f
+                    val top = Channels.rowTop(rowIndex)
                     row.forEachIndexed { colIndex, key ->
                         hit(
                             w, h,
-                            keyChannelStart(colIndex), top,
-                            channelWidth(colIndex), 0.1325f,
+                            Channels.start(colIndex), top,
+                            Channels.width(colIndex), Channels.ROW_HEIGHT,
                         ) {
                             haptics.click()
                             onKey(key.main[0])
@@ -165,22 +163,51 @@ fun RazrKeypad(
 
 // ---- Numeric block geometry --------------------------------------------------
 
-/** Left edge fraction of the three etch channels. */
-private fun keyChannelStart(col: Int): Float = when (col) {
-    0 -> 0.065f
-    1 -> 0.375f
-    else -> 0.675f
-}
+/**
+ * Fractional geometry of the three etched channels.
+ *
+ * Held in one place because the painted groove and the tap targets are derived
+ * from the same numbers — when they lived in two lists they drifted apart and
+ * the keys stopped lining up with what was drawn.
+ *
+ * The centre channel is deliberately narrower than the outer two: that pinch,
+ * repeated on every separator, is what gives the deck its waisted silhouette.
+ */
+private object Channels {
+    val leftStart = 0.065f
+    val leftEnd = 0.345f
+    val centreStart = 0.385f
+    val centreEnd = 0.615f
+    val rightStart = 0.655f
+    val rightEnd = 0.935f
 
-/** Width fraction — the centre channel is deliberately the narrow one. */
-private fun channelWidth(col: Int): Float = when (col) {
-    0 -> 0.260f
-    1 -> 0.250f
-    else -> 0.260f
-}
+    /** Top edge of each key row, plus the closing edge below the last one. */
+    val rowTops = floatArrayOf(0.455f, 0.587f, 0.720f, 0.852f, 0.985f)
+    const val ROW_HEIGHT = 0.1325f
 
-/** Top edge of each key row. */
-private fun keyRowTop(row: Int): Float = 0.455f + row * 0.1325f
+    /**
+     * How far the centre run of each separator sits below the outer runs.
+     *
+     * On the handset the groove steps *down* into the narrow centre channel and
+     * back out again, rather than running straight across. Without this step the
+     * sheet reads as a plain grid and the waist disappears.
+     */
+    const val CENTRE_DIP = 0.018f
+
+    fun start(col: Int): Float = when (col) {
+        0 -> leftStart
+        1 -> centreStart
+        else -> rightStart
+    }
+
+    fun width(col: Int): Float = when (col) {
+        0 -> leftEnd - leftStart
+        1 -> centreEnd - centreStart
+        else -> rightEnd - rightStart
+    }
+
+    fun rowTop(row: Int): Float = rowTops[row]
+}
 
 /**
  * Places a transparent tap target at fractional deck coordinates.
@@ -272,12 +299,15 @@ private fun KeyLegend(
 /**
  * The laser-etch network.
  *
- * Rebuilt without the old "keyhole arch": that single continuous curve was
- * rendering as a stray ring over the 2/5/8 column. The deck is now described
- * the way the reference actually reads — a rounded rectangle around the D-pad
- * deck, then three vertical channels with a horizontal brace per key. Strokes
- * are deliberately light so the etch reads as cut into the metal rather than
- * drawn on top of it.
+ * Rebuilt twice now. First without the old "keyhole arch", which was a single
+ * continuous curve rendering as a stray ring over the 2/5/8 column. Then without
+ * the vertical channel walls, which closed every cell into its own rectangle and
+ * made the deck read as a grid of key tiles rather than one etched sheet.
+ *
+ * What remains is what the reference photograph actually shows: a rounded
+ * rectangle around the D-pad deck, and in the numeric block a set of
+ * serpentine separators that step down into a narrow centre channel. Strokes are
+ * deliberately light so the etch reads as cut into the metal, not drawn on it.
  */
 private fun DrawScope.drawEtch(palette: RazrPalette) {
     val w = size.width
@@ -291,10 +321,6 @@ private fun DrawScope.drawEtch(palette: RazrPalette) {
             style = Stroke(width = width * 2.0f, cap = StrokeCap.Round),
         )
         drawPath(path, palette.groove, style = Stroke(width = width, cap = StrokeCap.Round))
-    }
-
-    fun line(x1: Float, y1: Float, x2: Float, y2: Float, width: Float = g) {
-        etch(Path().apply { moveTo(x1, y1); lineTo(x2, y2) }, width)
     }
 
     // --- D-pad deck: a plain rounded rectangle, no arch --------------------
@@ -329,18 +355,49 @@ private fun DrawScope.drawEtch(palette: RazrPalette) {
         width = g * 0.7f,
     )
 
-    // --- Numeric block: three channels, centre one narrower ---------------
-    val starts = listOf(0.065f, 0.375f, 0.675f)
-    val ends = listOf(0.325f, 0.625f, 0.935f)
-    val rowLines = listOf(0.455f, 0.587f, 0.720f, 0.852f, 0.985f)
-    val blockTop = h * rowLines.first()
-    val blockBottom = h * rowLines.last()
+    // --- Numeric block: five serpentine separators, no vertical walls --------
+    //
+    // This is the correction that matters. Drawing a vertical line down both
+    // edges of every channel plus a horizontal line per row closes every cell
+    // into its own rectangle, which is what made the deck read as a grid of
+    // key tiles. The handset has no vertical walls in the numeric block at all:
+    // one continuous groove runs left to right, stepping down into the narrow
+    // centre channel and back out again.
+    val dip = h * Channels.CENTRE_DIP
+    Channels.rowTops.forEach { frac ->
+        val y = h * frac
+        val yMid = y + dip
 
-    starts.forEach { line(w * it, blockTop, w * it, blockBottom) }
-    ends.forEach { line(w * it, blockTop, w * it, blockBottom) }
-    rowLines.forEach { f ->
-        val y = h * f
-        starts.indices.forEach { i -> line(w * starts[i], y, w * ends[i], y) }
+        // Control-point overshoot, so each transition is an S rather than a kink.
+        fun blend(fromX: Float, toX: Float) = fromX + (toX - fromX) * 0.55f
+
+        val leftX = w * Channels.leftStart
+        val leftEndX = w * Channels.leftEnd
+        val centreStartX = w * Channels.centreStart
+        val centreEndX = w * Channels.centreEnd
+        val rightStartX = w * Channels.rightStart
+        val rightEndX = w * Channels.rightEnd
+
+        etch(
+            Path().apply {
+                moveTo(leftX, y)
+                lineTo(leftEndX, y)
+                // Step down into the narrow centre channel.
+                cubicTo(
+                    blend(leftEndX, centreStartX), y,
+                    blend(centreStartX, leftEndX), yMid,
+                    centreStartX, yMid,
+                )
+                lineTo(centreEndX, yMid)
+                // ...and back out to the right-hand channel.
+                cubicTo(
+                    blend(centreEndX, rightStartX), yMid,
+                    blend(rightStartX, centreEndX), y,
+                    rightStartX, y,
+                )
+                lineTo(rightEndX, y)
+            }
+        )
     }
 }
 

@@ -199,6 +199,8 @@ fun RazrV3iScreen(
     var dialBuffer by rememberSaveable { mutableStateOf("") }
     var lastDialed by rememberSaveable { mutableStateOf("") }
     var toast by rememberSaveable { mutableStateOf<String?>(null) }
+    // Bumped on every outgoing attempt so the watchdog below re-arms per call.
+    var dialAttempt by remember { mutableStateOf(0) }
 
     val contactsPermLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -345,10 +347,17 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         if (clean.isEmpty()) return
         lastDialed = clean
         val tm = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
-        runCatching { tm.placeCall(Uri.fromParts("tel", clean, null), Bundle()) }
+        // Only claim the in-call screen if the request was actually accepted.
+        // Setting it unconditionally meant a thrown placeCall left a dead
+        // "CONNECTED" screen behind even though the toast said it had failed.
+        val placed = runCatching { tm.placeCall(Uri.fromParts("tel", clean, null), Bundle()) }
             .onFailure { toast = "CALL FAILED - CHECK SIM" }
+            .isSuccess
         dialBuffer = ""
-        view = RazrView.IN_CALL
+        if (placed) {
+            view = RazrView.IN_CALL
+            dialAttempt++
+        }
     }
 
     fun startCall(
@@ -494,6 +503,25 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
     // Auto-dismiss the transient toast strip.
     LaunchedEffect(toast) {
         if (toast != null) { delay(2600); toast = null }
+    }
+
+    // Watchdog for an outgoing call the system never handed us.
+    //
+    // placeCall() succeeds as soon as TelecomManager accepts the request, but the
+    // call can still be refused downstream -- no service, calls disabled, no
+    // default dialer. In that case RazrInCallService never attaches, so
+    // CallManager.call stays null, the DISCONNECTED branch above never runs, and
+    // the deck used to sit on a fabricated CONNECTED screen indefinitely. Give
+    // the radio a few seconds to produce a call, then fall back to standby.
+    LaunchedEffect(dialAttempt) {
+        if (dialAttempt == 0) return@LaunchedEffect
+        delay(8000)
+        if (CallManager.call.value == null && view == RazrView.IN_CALL) {
+            tonePlayer.playBusy()
+            toast = "CALL FAILED - NO SERVICE"
+            dialBuffer = ""
+            view = RazrView.STANDBY
+        }
     }
 
     // Opening the inbox clears the unread tally, per the manual's message flow.
@@ -1025,6 +1053,15 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
                                     callSeconds = callSeconds,
                                     callStatus = when {
                                         isOnHold -> "CALL ON HOLD"
+                                        // A DISCONNECTED call still lands here on its
+                                        // way off the screen, so it must never be
+                                        // labelled CONNECTED.
+                                        live?.state == Call.STATE_DISCONNECTED -> "CALL ENDED"
+                                        // No call object at all yet means TelecomManager
+                                        // has accepted the request but the radio has not
+                                        // produced anything. Saying CONNECTED here is how
+                                        // a dead call managed to look like a live one.
+                                        live == null -> "CALLING..."
                                         live?.state == Call.STATE_DIALING ||
                                             live?.state == Call.STATE_CONNECTING -> "CALLING..."
                                         else -> "CONNECTED"
