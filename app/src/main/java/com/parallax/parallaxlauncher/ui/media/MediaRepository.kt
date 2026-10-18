@@ -112,37 +112,19 @@ class MediaRepository(private val context: Context) {
         // the query throw. Build the projection per kind and look columns up by
         // name rather than by position.
         //
-        // The shared column names live on MediaColumns: MediaStore.Media's copies
-        // are gone from the SDK and referencing them does not resolve.
+        // Raw column names throughout, including in the projection. The typed
+        // constants were the original cause of the library being empty on
+        // device: `MediaStore.Audio.Media._ID` and friends no longer resolve to
+        // "_id" on this compileSdk, so `getColumnIndex("_id")` came back -1 and
+        // the loop bailed before reading anything. The screen then said "Add
+        // some music and it appears here" on a phone with two indexed tracks.
+        // These names are the part of MediaStore that is stable and public.
         val projection = if (kindLabel == "AUDIO") {
-            arrayOf(
-                MediaStore.Audio.Media._ID,
-                MediaStore.Audio.Media.TITLE,
-                MediaStore.Audio.Media.ARTIST,
-                MediaStore.Audio.Media.MIME_TYPE,
-                MediaStore.Audio.Media.DURATION,
-                MediaStore.Audio.Media.SIZE,
-                MediaStore.Audio.Media.DATE_ADDED,
-            )
+            arrayOf("_id", "title", "artist", "mime_type", "duration", "_size", "date_added")
         } else if (kindLabel == "VIDEO") {
-            arrayOf(
-                MediaStore.Video.Media._ID,
-                MediaStore.Video.Media.TITLE,
-                MediaStore.Video.Media.ARTIST,
-                MediaStore.Video.Media.MIME_TYPE,
-                MediaStore.Video.Media.DURATION,
-                MediaStore.Video.Media.SIZE,
-                MediaStore.Video.Media.DATE_ADDED,
-            )
+            arrayOf("_id", "title", "artist", "mime_type", "duration", "_size", "date_added")
         } else {
-            arrayOf(
-                MediaStore.Images.Media._ID,
-                MediaStore.Images.Media.TITLE,
-                MediaStore.Images.Media.DISPLAY_NAME,
-                MediaStore.Images.Media.MIME_TYPE,
-                MediaStore.Images.Media.SIZE,
-                MediaStore.Images.Media.DATE_ADDED,
-            )
+            arrayOf("_id", "title", "display_name", "mime_type", "_size", "date_added")
         }
 
         val args = when (kindLabel) {
