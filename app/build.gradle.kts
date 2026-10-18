@@ -81,7 +81,29 @@ android {
             }
             optimization {
                 enable = true
-                packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
+                // kotlin.** is deliberately NOT in scope.
+                //
+                // The stdlib is shared with androidx rather than owned by this
+                // app, and letting R8 repackage it produced a release-only
+                // crash before MainActivity ever started:
+                //
+                //   java.lang.IllegalAccessError: Class kotlin.collections.j
+                //   extended by class yn is inaccessible
+                //     at androidx.lifecycle.ProcessLifecycleInitializer
+                //
+                // androidx.lifecycle.ProcessLifecycleInitializer still refers
+                // to the original stdlib name, which repackaging had made
+                // unreachable. It is worth recording that this was latent
+                // rather than caused by any one change: the build before this
+                // one produced a working APK from the identical configuration,
+                // and only a trivial code edit tipped R8 into the broken
+                // outcome. Debug builds never showed it, because they are not
+                // shrunk.
+                //
+                // Leaving the stdlib alone costs almost nothing — it ships
+                // already minified — and removes a failure mode that CI's
+                // build-only check cannot see. See AGENTS.md.
+                packageScope = setOf("androidx.**", "kotlinx.**")
             }
         }
     }
