@@ -136,6 +136,14 @@ dependencies {
     // androidx/media/session/MediaControllerCompat any more, so
     // implementation(libs.androidx.media) compiles to nothing usable.
     implementation(libs.androidx.media3.session)
+    // ExoPlayer, because Parallax now decodes audio itself. Handing a chosen
+    // track to another player fails on a device with no music app, which is
+    // exactly the lab hardware. Reverses the earlier "never decode anything"
+    // decision deliberately.
+    implementation(libs.androidx.media3.exoplayer)
+    // FoldingFeature, so the closed-flip takeover tracks a real hinge rather
+    // than a manual toggle. 1.5.1 is the latest stable; 1.6.0 is alpha only.
+    implementation(libs.androidx.window)
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.lifecycle)

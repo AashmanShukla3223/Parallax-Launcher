@@ -381,6 +381,60 @@ class NowPlayingRepository(context: Context) {
         c.shuffleModeEnabled = !c.shuffleModeEnabled
     }
 
+    /**
+     * Plays a MediaStore item in Parallax's own session.
+     *
+     * Preferred over taking over the session another app is already using: the
+     * chosen track is ours, so binding our own [ParallaxMediaService] keeps the
+     * two from fighting over one controller. Falls back to the active session
+     * when our service is not reachable, which is what happens on a device
+     * where playback has to go through whatever else is installed.
+     */
+    fun play(item: MediaItem) {
+        val token = SessionToken(appContext, ComponentName(appContext, ParallaxMediaService::class.java))
+        val future = try {
+            MediaController.Builder(appContext, token)
+                .setApplicationLooper(Looper.getMainLooper())
+                .buildAsync()
+        } catch (_: Exception) {
+            null
+        } ?: return
+
+        future.addListener(
+            {
+                val controller = try {
+                    future.get()
+                } catch (_: Exception) {
+                    null
+                } ?: return@addListener
+                onMain {
+                    runCatching {
+                        // Fully qualified: this package already has its own
+                        // MediaItem for the media browser, and importing
+                        // Media3's under the same name would silently shadow it.
+                        controller.setMediaItem(
+                            androidx.media3.common.MediaItem.fromUri(item.uri.toString()),
+                        )
+                        controller.prepare()
+                        controller.play()
+                    }
+                }
+                // Do NOT release the controller here. Releasing tears down the
+                // binding to our own service, which is what keeps the track
+                // playing. The next poll rediscovers this session through
+                // getActiveSessions and takes over cleanly.
+                lastKnown = Transport(
+                    hasTrack = true,
+                    playing = true,
+                    title = item.title,
+                    artist = item.subtitle,
+                    durationMs = item.durationMs,
+                )
+            },
+            ContextCompat.getMainExecutor(appContext),
+        )
+    }
+
     private companion object {
         /**
          * The notification listener this app already registers. Passing it

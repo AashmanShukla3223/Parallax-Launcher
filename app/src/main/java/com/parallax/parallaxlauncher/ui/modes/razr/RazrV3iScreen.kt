@@ -100,9 +100,15 @@ import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrActionSheet
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrListScreen
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrNoSimNotice
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrSecretCodeList
+import com.parallax.parallaxlauncher.ui.media.ItunesLibrary
 import com.parallax.parallaxlauncher.ui.media.ItunesNowPlaying
+import com.parallax.parallaxlauncher.ui.media.CoverNowPlaying
+import com.parallax.parallaxlauncher.ui.media.MediaItem
+import com.parallax.parallaxlauncher.ui.media.MediaKind
+import com.parallax.parallaxlauncher.ui.media.MediaRepository
 import com.parallax.parallaxlauncher.ui.media.NowPlayingRepository
 import com.parallax.parallaxlauncher.ui.media.Transport
+import com.parallax.parallaxlauncher.ui.media.rememberFoldedShut
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrMessageMenu
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrNotificationAlert
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrPixelScreen
@@ -123,6 +129,7 @@ import com.parallax.parallaxlauncher.ui.modes.razr.games.RazrGameHost
 import com.parallax.parallaxlauncher.ui.modes.razr.games.RazrGamesMenu
 import com.parallax.parallaxlauncher.ui.modes.razr.games.RazrScores
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -214,6 +221,26 @@ fun RazrV3iScreen(
     val nowPlaying = remember { NowPlayingRepository(context) }
     LaunchedEffect(Unit) { nowPlaying.start(mediaScope) }
     val transport by nowPlaying.state.collectAsState()
+
+    // The song list behind "choose a song". Loaded on demand rather than at
+    // startup: it is a MediaStore query, and a launcher should not pay for it
+    // on every cold start.
+    val mediaRepo = remember { MediaRepository(context) }
+    var tracks by remember { mutableStateOf(emptyList<MediaItem>()) }
+    // Folded shut like a Z Flip. When true the launcher owns the closed-flip
+    // screen and shows the passive cover takeover instead of the handset UI.
+    val foldedShut by rememberFoldedShut()
+    var coverTakeover by rememberSaveable { mutableStateOf(false) }
+    // Entering the takeover is automatic on a real fold, but the V3i's own
+    // hinge has no FoldingFeature, so closing the flip by hand sets it too.
+    // Either way the cover screen is the one thing showing.
+    val coverActive = foldedShut || coverTakeover || flip <= 0.002f
+
+    fun loadLibrary() {
+        mediaScope.launch {
+            tracks = mediaRepo.load(MediaKind.AUDIO)
+        }
+    }
 
     val contactsPermLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -650,7 +677,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
             3 -> { openContacts(); goHome() }
             4 -> openBrowser()
             5 -> { view = RazrView.GAMES; listIndex = 0 }
-            6 -> { view = RazrView.ITUNES }
+            6 -> { view = RazrView.ITUNES_LIBRARY; listIndex = 0; loadLibrary() }
             7 -> { view = RazrView.TOOLS; subIndex = 0 }
             8 -> { view = RazrView.SETTINGS; subIndex = 0 }
             9 -> openCamera()
@@ -694,6 +721,16 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
             }
         }
         tonePlayer.playDtmf(ch)
+        // The closed-flip takeover is passive by design: nothing on the cover
+        // screen responds, so '*' is the single way out and it hands back to the
+        // system lock screen, exactly as the globe key already does when the
+        // handset is locked.
+        if (coverActive && ch == '*') {
+            tonePlayer.playRazrChirp()
+            coverTakeover = false
+            requestSystemUnlock()
+            return
+        }
         if (locked) {
             // The in-app lock panel and the separate 4-digit RAZR unlock code are
             // both gone. There is exactly one way in: '*' hands off to the real
@@ -811,6 +848,9 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
             // UP on the player is "previous track", matching every other player
             // ever built, and deliberately not "back" — leaving is BACK's job.
             view == RazrView.ITUNES -> { tonePlayer.playRazrChirp(); nowPlaying.previous() }
+            // The library scrolls with UP/DOWN like every other RAZR list.
+            view == RazrView.ITUNES_LIBRARY ->
+                if (listIndex > 0) { listIndex -= 1; tonePlayer.playRazrChirp() }
         }
     }
 
@@ -851,6 +891,8 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
                 if (contactActionIndex < CONTACT_ACTIONS.lastIndex) { contactActionIndex += 1; tonePlayer.playRazrChirp() }
             view == RazrView.IN_CALL -> { callVolume = (callVolume - 1).coerceAtLeast(1); tonePlayer.playRazrChirp() }
             view == RazrView.ITUNES -> { tonePlayer.playRazrChirp(); nowPlaying.next() }
+            view == RazrView.ITUNES_LIBRARY ->
+                if (listIndex < tracks.lastIndex) { listIndex += 1; tonePlayer.playRazrChirp() }
         }
     }
 
@@ -899,6 +941,16 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
             RazrView.ITUNES -> {
                 tonePlayer.playDtmf(' ')
                 nowPlaying.togglePlayPause()
+            }
+            // SELECT on a song plays it and drops into Now Playing, which is
+            // the whole point of browsing the list.
+            RazrView.ITUNES_LIBRARY -> {
+                tracks.getOrNull(listIndex)?.let { item ->
+                    tonePlayer.playRazrChirp()
+                    nowPlaying.play(item)
+                    view = RazrView.ITUNES
+                    toast = "PLAYING ${item.title.uppercase(Locale.ROOT)}"
+                }
             }
         // The stock phonebook does not call straight away; SELECT opens the
         // action sheet, which is the only way Call / Message / Copy are
@@ -1016,6 +1068,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         // carried by the button instead: it tints selection-blue when engaged
         // and repeat-one draws a distinct glyph.
         view == RazrView.ITUNES -> "REPEAT"
+        view == RazrView.ITUNES_LIBRARY -> "BACK"
         view == RazrView.PHONEBOOK_ACTIONS -> "SELECT"
         else -> "BACK"
     }
@@ -1026,6 +1079,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         view == RazrView.STANDBY -> "MENU"
         view == RazrView.DIALING -> "SEND"
         view == RazrView.ITUNES -> if (transport.playing) "PAUSE" else "PLAY"
+        view == RazrView.ITUNES_LIBRARY -> "SELECT"
         else -> "SELECT"
     }
     val softRight = when {
@@ -1034,6 +1088,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         view == RazrView.INCOMING -> "ANSWER"
         view == RazrView.DIALING -> "CANCEL"
         view == RazrView.ITUNES -> "SHUFFLE"
+        view == RazrView.ITUNES_LIBRARY -> "BACK"
         view == RazrView.STANDBY -> "CLOSE FLIP"
         else -> "BACK"
     }
@@ -1156,6 +1211,12 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
 
                         Box(Modifier.weight(1f).fillMaxWidth()) {
                             when {
+                                // The closed-flip takeover outranks everything,
+                                // including an incoming call: on a folded device
+                                // the cover screen is all there is, and the call
+                                // is still announced on it. Everything below
+                                // this is the open-flip handset.
+                                coverActive -> CoverNowPlaying(transport)
                                 isRinging -> RazrIncomingCallScreen(palette, connectedNumber, canAnswer = incomingMayAnswer)
                                 // No `locked` arm. While locked the deck shows whatever
                                 // it was on, every key is inert, and '*' opens the system
@@ -1306,6 +1367,10 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
                             isRinging -> { haptics.thud(); CallManager.reject() }
                             view == RazrView.IN_CALL -> { CallManager.hangUp(); goHome() }
                             locked -> { tonePlayer.playRazrChirp(); requestSystemUnlock() }
+                            // CANCEL is BACK on every other sub-page, so from the
+                            // player it returns to the library it came from rather
+                            // than to standby.
+                            view == RazrView.ITUNES -> { view = RazrView.ITUNES_LIBRARY; tonePlayer.playRazrChirp() }
                             else -> { tonePlayer.playBusy(); dialBuffer = ""; goHome() }
                         }
                     },
@@ -1466,6 +1531,12 @@ private fun ActiveView(
             onNext = { nowPlaying.next() },
             onCycleRepeat = { nowPlaying.cycleRepeat() },
             onToggleShuffle = { nowPlaying.toggleShuffle() },
+        )
+
+        RazrView.ITUNES_LIBRARY -> ItunesLibrary(
+            tracks = tracks,
+            selectedIndex = listIndex,
+            hasPermission = hasMediaPermission(context),
         )
 
         RazrView.MESSAGES -> RazrMessageMenu(
@@ -1714,6 +1785,24 @@ private fun hasContactsPermission(context: Context): Boolean =
         PackageManager.PERMISSION_GRANTED
 
 /**
+ * Whether the song library is readable.
+ *
+ * READ_MEDIA_AUDIO from API 33, READ_EXTERNAL_STORAGE below it. Both are
+ * declared; only the one that applies to the running OS can be granted, so
+ * checking the wrong one on the wrong platform reports "no music" on a device
+ * that has plenty.
+ */
+private fun hasMediaPermission(context: Context): Boolean {
+    val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        Manifest.permission.READ_MEDIA_AUDIO
+    } else {
+        Manifest.permission.READ_EXTERNAL_STORAGE
+    }
+    return ContextCompat.checkSelfPermission(context, permission) ==
+        PackageManager.PERMISSION_GRANTED
+}
+
+/**
  * Reads the device phonebook.
  *
  * Queries only the phone rows so the projection stays cheap on a 176x220
@@ -1776,6 +1865,7 @@ private fun titleFor(view: RazrView, isRinging: Boolean, currentGameTitle: Strin
     view == RazrView.THEME -> "Themes"
     view == RazrView.TOOLS -> "Tools"
     view == RazrView.ITUNES -> "Now Playing"
+    view == RazrView.ITUNES_LIBRARY -> "Music"
     view == RazrView.SECRET_CODES -> "Secret Codes"
     view == RazrView.IN_CALL -> "In Call"
     view == RazrView.DIALING -> "Dialing"

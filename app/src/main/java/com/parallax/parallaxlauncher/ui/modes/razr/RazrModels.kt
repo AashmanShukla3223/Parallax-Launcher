@@ -40,6 +40,11 @@ enum class RazrView {
      * with, which is what the "i" in its name meant.
      */
     ITUNES,
+    /**
+     * The song list, in the same iTunes chrome. Entered from Multimedia, which
+     * is what "choose a song and play" actually starts with.
+     */
+    ITUNES_LIBRARY,
     CALCULATOR,
     DATEBOOK,
     RINGTONES,

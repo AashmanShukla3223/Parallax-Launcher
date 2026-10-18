@@ -18,6 +18,12 @@
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <!-- Parallax now plays audio itself, so it needs a media foreground
+         service. POST_NOTIFICATIONS is still deliberately absent: the media
+         session's notification is posted by the platform on our behalf, and the
+         app posting its own is what the existing notification design avoids. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA" />
     <!-- Pre-33 equivalent, capped so it is never requested on a modern device. -->
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
@@ -145,6 +151,25 @@
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!--
+            Parallax's own media session. Exported because the system (and any
+            other player) has to bind to it; the BIND_MEDIA_SESSION_SERVICE
+            permission is what actually gates that, not exported=false.
+
+            foregroundServiceType="mediaPlayback" is required from API 34 for a
+            session that can run while the app is in the background, which a
+            music player has to be.
+        -->
+        <service
+            android:name=".ui.media.ParallaxMediaService"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+                <action android:name="android.media.browse.MediaBrowserService" />
             </intent-filter>
         </service>
     </application>
