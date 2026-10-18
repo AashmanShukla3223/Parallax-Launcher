@@ -214,6 +214,24 @@ Reference material lives in `Razr V3i References/` (spec docx, 128-page manual P
 
 - Kotlin 2.2.10, Compose BOM, Material 3. `compileSdk`/`targetSdk` = 37, `minSdk` = 27, `compileOptions` = Java 11.
 - Compose-only UI; no XML layouts. `buildFeatures.compose = true`, no `viewBinding`.
-- AGP 9 `optimization { packageScope = ... }` in the release block — only shrink `androidx.**`, `kotlin.**`, `kotlinx.**`. Adding your own packages to that set changes release behaviour.
+- AGP 9 `optimization { packageScope = ... }` in the release block — shrink `androidx.**` and `kotlinx.**` only. **`kotlin.**` must stay out.** With it in scope, R8 repackaged the stdlib and shipped a release APK that died on launch with `IllegalAccessError: Class kotlin.collections.j extended by class yn is inaccessible`, thrown from `ProcessLifecycleInitializer` before `MainActivity` started. There are no `proguardFiles` at all, so that block is the entire shrink configuration.
+
+### The release crash nothing in CI can see
+
+A release-only R8 failure reached a signed APK and **no job in `android.yml` could have caught it**: `Build & Test APK` and `Signed release APK` both assemble without launching the app, and `emulator` installs the *debug* variant, which is never shrunk.
+
+Worse, it was **latent rather than caused by any one change**. The build immediately before it produced a working APK from an identical configuration, and that exact older APK still ran clean when reinstalled — so "the new code broke it" was the wrong conclusion, and worth ruling out before touching anything. A trivial edit was enough to tip R8 into the broken outcome.
+
+Consequence: a green run does not mean the release artifact *starts*. **Install the release APK and launch it before trusting any shrink-related change.** Removing `kotlin.**` was the fix; the stdlib ships minified anyway, so the size saving was negligible.
+
+### Secret codes cannot be sent, only handed off
+
+`*#06#` and friends are delivered by broadcasting `android.provider.Telephony.SECRET_CODE`. A launcher **cannot** do that: the action is protected by `MODIFY_PHONE_STATE`, a signature permission no ordinary app can ever hold, and `ROLE_DIALER` is an unrelated grant that does not help — confirmed on Android 17 by watching it fail. `com.android.phone` also registers no `SECRET_CODE` receiver on API 37, so the old dialer-side path is gone too.
+
+The working approach is to hand the code to a **foreign** dialer via `ACTION_DIAL` and let that dialer run it. The trap: Parallax registers for `ACTION_DIAL` with a `tel:` scheme, so a plain `startActivity` resolves straight back to Parallax and the code goes nowhere. `SecretCodes.send` filters candidates to foreign packages, and Samsung's `com.samsung.android.dialer` then receives the code intact — verified on device, `*#06#` arrives unmangled.
+
+Two shapes exist and **both must match**: `*#06#` and `*#*#6485#*#*`. Matching only the first silently breaks everything else — those codes fail `detect()`, fall through to `placeCall`, and the app *tries to dial them*. Check the pattern against the whole table plus the false-positive cases (`*`, `#` and ordinary numbers must not match).
+
+Samsung's dialer nags "Set Phone as default phone app?" and closes itself if you decline, so the code is only usable if you act before dismissing. Do not grant that role to test Parallax's handoff — the handoff works without it.
 - `local.properties`, `.idea/caches`, `/build` are gitignored. `.idea/misc.xml` has been committed before and shows up as unrelated noise in diffs — ignore it.
 - CI treats `main` and `master` as the integration branches; the repo is on `main`.

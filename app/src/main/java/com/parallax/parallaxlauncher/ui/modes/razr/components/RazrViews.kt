@@ -19,9 +19,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -1307,12 +1309,20 @@ fun RazrSecretCodeList(
 ) {
     val entries = SecretCodes.reference
     val safe = selectedIndex.coerceIn(0, (entries.size - 1).coerceAtLeast(0))
+    // This list is walked with a D-pad, not a finger, so it has to keep the
+    // highlighted row on screen. Without this the column keeps the scroll
+    // position from last time and re-entering shows entries 4+ while the
+    // selection is still on entry 1 -- the screen and the state disagree.
+    val listState = rememberLazyListState()
+    LaunchedEffect(safe) {
+        listState.scrollToItem(safe)
+    }
     Column(
         modifier
             .fillMaxSize()
             .background(palette.field)
     ) {
-        LazyColumn(Modifier.weight(1f)) {
+        LazyColumn(state = listState, modifier = Modifier.weight(1f)) {
             itemsIndexed(entries) { index, entry ->
                 val selected = index == safe
                 val ink = if (selected) palette.selectInk else palette.ink
