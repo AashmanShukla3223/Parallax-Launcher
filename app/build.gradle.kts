@@ -58,8 +58,12 @@ android {
         // versionCode must strictly increase for Android to accept a build as
         // an update over an installed one. v1.0.0 was 1, v1.0.1 was 2,
         // v1.0.2 was 3.
-        versionCode = 4
-        versionName = "1.0.3"
+        //
+        // Back to 3 deliberately: the music work built on top of v1.0.2 was
+        // reverted rather than released, so 1.0.3 was never published and
+        // claiming that versionCode would leave a gap.
+        versionCode = 3
+        versionName = "1.0.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

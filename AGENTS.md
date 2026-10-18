@@ -271,6 +271,8 @@ Three routes tried, all dead ends:
 - **A window on the cover display** — `TYPE_APPLICATION_OVERLAY` via `SYSTEM_ALERT_WINDOW`, bound to the cover `Display`. The platform APIs for this are largely gone or hidden on compileSdk 37: `Context.createWindowContext` has no usable public 2-arg overload, `Display.TYPE_INTERNAL` / `FLAG_OWN_DISPLAY_ONLY` / `Display.type` do not resolve, and `DisplayManager.createDisplayContext` does not resolve either — even though `DisplayManager` itself resolves fine.
 
 `rememberFoldState()` and the closed-flip takeover were **removed** rather than left in a half-working state. The feature was deleted, `androidx.window` dropped, and the handset's closed flip went back to showing the cover panel it always had. The record above is kept because the finding is expensive and not visible from the source.
+
+The 2005-iTunes player is unrelated to any of this and survives: it lives under `Multimedia` in Mode 7 and is driven from the handset's own keypad.
 - `local.properties`, `.idea/caches`, `/build` are gitignored. `.idea/misc.xml` has been committed before and shows up as unrelated noise in diffs — ignore it.
 - CI treats `main` and `master` as the integration branches; the repo is on `main`.
 

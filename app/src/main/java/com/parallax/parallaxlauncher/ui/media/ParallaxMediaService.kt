@@ -19,11 +19,12 @@ import androidx.media3.session.MediaSessionService
  * With nothing to hand off to, the chooser had nothing to choose and Now
  * Playing was permanently empty. So Parallax decodes its own audio.
  *
- * This reverses an earlier decision recorded in `MediaBrowserScreen`: that a
- * launcher shipping its own decoder was "worse than the gallery that is
- * already installed". That was right when the only use was *viewing* a file
- * someone else chose. It is wrong for playback, where being unable to play is
- * worse than having a second player.
+ * This reverses an earlier decision recorded in the media browser that was
+ * since deleted: that a launcher shipping its own decoder was "worse than the
+ * gallery that is already installed". That was right when the only use was
+ * *viewing* a file someone else chose. It is wrong for playback, where being
+ * unable to play is worse than having a second player -- and an SM-F976B has no
+ * music app installed at all, so the handoff had nothing to hand off to.
  *
  * ## Why a MediaSessionService and not a bare ExoPlayer
  *
