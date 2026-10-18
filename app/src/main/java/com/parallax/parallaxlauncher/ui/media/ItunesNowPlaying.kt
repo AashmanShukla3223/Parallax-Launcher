@@ -81,7 +81,11 @@ fun ItunesNowPlaying(
                 .padding(horizontal = 5.dp, vertical = 5.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Lcd(transport = transport, onScrubFraction = onScrubFraction)
+            Lcd(
+                modifier = Modifier.weight(1f),
+                transport = transport,
+                onScrubFraction = onScrubFraction,
+            )
             TransportRow(
                 transport = transport,
                 onPlayPause = onPlayPause,
@@ -94,13 +98,22 @@ fun ItunesNowPlaying(
     }
 }
 
-/** The sunken readout: track, artist, album, clock and scrubber. */
+/**
+ * The sunken readout: track, artist, album, clock and scrubber.
+ *
+ * Takes a [modifier] rather than calling `Modifier.weight` itself. `weight` is
+ * a member of `ColumnScope`, available only lexically inside a Column's content
+ * lambda — a separate composable called from one does not inherit it. The
+ * caller, which *is* inside the Column, passes the weighted modifier in.
+ */
 @Composable
-private fun Lcd(transport: Transport, onScrubFraction: (Float) -> Unit) {
+private fun Lcd(
+    modifier: Modifier,
+    transport: Transport,
+    onScrubFraction: (Float) -> Unit,
+) {
     Box(
-        Modifier
-            .weight(1f)
-            .fillMaxWidth()
+        modifier.fillMaxWidth()
     ) {
         Canvas(Modifier.fillMaxSize()) {
             lcdWell(0f, 0f, size.width, size.height, radius = size.minDimension * 0.07f)

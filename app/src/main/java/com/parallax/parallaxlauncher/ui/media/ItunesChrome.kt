@@ -290,9 +290,9 @@ fun DrawScope.glyphRepeat(s: Float) {
 
 /** Single "1" bar for repeat-one, distinguished from plain repeat. */
 fun DrawScope.glyphRepeatOne(s: Float) {
-    // Qualified: a bare repeat(s) resolves to the stdlib's repeat(times)
-    // first, which does not take a Float and fails to compile.
-    this.repeat(s)
+    // Qualified: a bare glyphRepeat(s) would still collide with the stdlib's
+    // repeat(times), which does not take a Float.
+    this.glyphRepeat(s)
     val bar = Path().apply {
         moveTo(0f, -s * 0.16f)
         lineTo(0f, s * 0.16f)
