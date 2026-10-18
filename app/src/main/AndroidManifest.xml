@@ -9,6 +9,20 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.CALL_PHONE" />
     <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
+
+    <!-- Media browsing. Deliberately MediaStore-scoped: these three cover exactly
+         what Android already indexes (audio, video, images) and nothing more.
+         All files access (MANAGE_EXTERNAL_STORAGE) is not requested -- it is a
+         heavyweight permission, heavily restricted, and a launcher asking for it
+         is a red flag rather than a feature. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <!-- Pre-33 equivalent, capped so it is never requested on a modern device. -->
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
@@ -16,6 +30,21 @@
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <!-- Needed to build the "Open with" list and to ask the system what a
+             media file can be opened with. Android 11 package visibility hides
+             these without an explicit declaration. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="image/*" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="video/*" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="audio/*" />
         </intent>
     </queries>
 
@@ -59,8 +88,39 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="tel" />
+                <data android:mimeType="image/*" />
+                <data android:mimeType="video/*" />
+                <data android:mimeType="audio/*" />
             </intent-filter>
+
+            <!-- "Open with" from gallery, file manager, browser and messaging.
+                 A separate activity rather than MainActivity so handing us a
+                 photo does not drag the whole launcher up first. -->
+            <activity
+                android:name=".ui.media.MediaViewerActivity"
+                android:exported="true"
+                android:excludeFromRecents="true"
+                android:label="@string/app_name"
+                android:theme="@style/Theme.ParallaxLauncher">
+                <intent-filter>
+                    <action android:name="android.intent.action.VIEW" />
+                    <category android:name="android.intent.category.DEFAULT" />
+                    <category android:name="android.intent.category.BROWSABLE" />
+                    <data android:mimeType="image/*" />
+                </intent-filter>
+                <intent-filter>
+                    <action android:name="android.intent.action.VIEW" />
+                    <category android:name="android.intent.category.DEFAULT" />
+                    <category android:name="android.intent.category.BROWSABLE" />
+                    <data android:mimeType="video/*" />
+                </intent-filter>
+                <intent-filter>
+                    <action android:name="android.intent.action.VIEW" />
+                    <category android:name="android.intent.category.DEFAULT" />
+                    <category android:name="android.intent.category.BROWSABLE" />
+                    <data android:mimeType="audio/*" />
+                </intent-filter>
+            </activity>
         </activity>
 
         <service
