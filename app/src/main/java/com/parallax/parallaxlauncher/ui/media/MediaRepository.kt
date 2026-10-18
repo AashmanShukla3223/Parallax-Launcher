@@ -64,8 +64,10 @@ class MediaRepository(private val context: Context) {
             out.sortedByDescending { it.dateAddedSec }.take(limit)
         }
 
+    // EXTERNAL_CONTENT_URI is a Uri, not a String. Declaring the field as String
+    // looks harmless until the compiler rejects every call site.
     private data class Spec(
-        val collection: String,
+        val collection: Uri,
         val selection: String?,
         val kindLabel: String,
     )
@@ -91,7 +93,7 @@ class MediaRepository(private val context: Context) {
     }
 
     private fun query(
-        collection: String,
+        collection: Uri,
         selection: String?,
         limit: Int,
         kindLabel: String,
@@ -102,6 +104,9 @@ class MediaRepository(private val context: Context) {
         // Images have no DURATION column at all, so asking for one by name makes
         // the query throw. Build the projection per kind and look columns up by
         // name rather than by position.
+        //
+        // The shared column names live on MediaColumns: MediaStore.Media's copies
+        // are gone from the SDK and referencing them does not resolve.
         val projection = if (kindLabel == "AUDIO") {
             arrayOf(
                 MediaStore.Audio.Media._ID,
@@ -139,51 +144,48 @@ class MediaRepository(private val context: Context) {
             else -> null
         }
 
-        val uri = Uri.parse(collection)
         val cursor: Cursor? = context.contentResolver.query(
-            uri, projection, selection, args,
-            "${MediaStore.Media.DATE_ADDED} DESC LIMIT $limit",
+            collection, projection, selection, args,
+            "$DATE_ADDED DESC LIMIT $limit",
         )
-        try {
-            cursor?.use { c ->
-                fun col(name: String) = c.getColumnIndex(name)
-                val idCol = col(MediaStore.Media._ID)
-                val titleCol = col(MediaStore.Media.TITLE)
-                val subCol = c.getColumnIndex(if (isImage) "_display_name" else "artist")
-                val mimeCol = col(MediaStore.Media.MIME_TYPE)
-                val durCol = if (isImage) -1 else col(MediaStore.Media.DURATION)
-                val sizeCol = col(MediaStore.Media.SIZE)
-                val dateCol = col(MediaStore.Media.DATE_ADDED)
+        cursor?.use { c ->
+            fun col(name: String) = c.getColumnIndex(name)
+            val idCol = col(ID)
+            val titleCol = col(MediaStore.MediaColumns.TITLE)
+            val subCol = c.getColumnIndex(if (isImage) "_display_name" else "artist")
+            val mimeCol = col(MediaStore.MediaColumns.MIME_TYPE)
+            val durCol = if (isImage) -1 else col(DURATION)
+            val sizeCol = col(SIZE)
+            val dateCol = col(DATE_ADDED)
 
-                if (idCol < 0 || titleCol < 0) return
+            if (idCol < 0 || titleCol < 0) return
 
-                while (c.moveToNext() && out.size < limit) {
-                    val id = c.getLong(idCol)
-                    val rawTitle = c.getString(titleCol)?.trim().orEmpty()
-                    val sub = if (subCol >= 0) c.getString(subCol)?.trim().orEmpty() else ""
-                    val mime = if (mimeCol >= 0) {
-                        c.getString(mimeCol)?.trim().orEmpty().ifEmpty { "*/*" }
-                    } else "*/*"
-                    val duration = if (durCol >= 0) c.getLong(durCol) else 0L
-                    val size = if (sizeCol >= 0) c.getLong(sizeCol) else 0L
+            while (c.moveToNext() && out.size < limit) {
+                val id = c.getLong(idCol)
+                val rawTitle = c.getString(titleCol)?.trim().orEmpty()
+                val sub = if (subCol >= 0) c.getString(subCol)?.trim().orEmpty() else ""
+                val mime = if (mimeCol >= 0) {
+                    c.getString(mimeCol)?.trim().orEmpty().ifEmpty { "*/*" }
+                } else "*/*"
+                val duration = if (durCol >= 0) c.getLong(durCol) else 0L
+                val size = if (sizeCol >= 0) c.getLong(sizeCol) else 0L
 
-                    out += MediaItem(
-                        id = id,
-                        uri = ContentUris.withAppendedId(uri, id),
-                        // MediaStore hands back a literal "<unknown>" often enough
-                        // to matter, and it would otherwise show as the filename.
-                        title = rawTitle.takeUnless {
-                            it.isEmpty() || it.equals("<unknown>", true)
-                        } ?: "Untitled",
-                        subtitle = sub.takeUnless {
-                            it.isEmpty() || it.equals("<unknown>", true)
-                        } ?: kindLabel.lowercase().replaceFirstChar { it.uppercase() },
-                        mime = mime,
-                        durationMs = duration,
-                        sizeBytes = size,
-                        dateAddedSec = if (dateCol >= 0) c.getLong(dateCol) else 0L,
-                    )
-                }
+                out += MediaItem(
+                    id = id,
+                    uri = ContentUris.withAppendedId(collection, id),
+                    // MediaStore hands back a literal "<unknown>" often enough
+                    // to matter, and it would otherwise show as the filename.
+                    title = rawTitle.takeUnless {
+                        it.isEmpty() || it.equals("<unknown>", true)
+                    } ?: "Untitled",
+                    subtitle = sub.takeUnless {
+                        it.isEmpty() || it.equals("<unknown>", true)
+                    } ?: kindLabel.lowercase().replaceFirstChar { it.uppercase() },
+                    mime = mime,
+                    durationMs = duration,
+                    sizeBytes = size,
+                    dateAddedSec = if (dateCol >= 0) c.getLong(dateCol) else 0L,
+                )
             }
         }
     }

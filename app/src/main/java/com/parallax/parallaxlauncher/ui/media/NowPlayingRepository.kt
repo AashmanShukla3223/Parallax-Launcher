@@ -5,6 +5,7 @@ import android.content.Context
 import android.media.MediaMetadata
 import android.media.session.MediaSession
 import android.media.session.MediaSessionManager
+import android.media.session.PlaybackState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -50,9 +51,13 @@ class NowPlayingRepository(private val context: Context) {
     suspend fun current(): NowPlaying? = withContext(Dispatchers.IO) {
         val manager = context.getSystemService(Context.MEDIA_SESSION_SERVICE) as? MediaSessionManager
             ?: return@withContext null
+        // getActiveSessions() is a method with a no-arg overload, not a property
+        // -- and passing our listener component explicitly is the documented form
+        // since API 23, which also scopes the result to this app.
         val sessions: List<MediaSession> = try {
-            manager.activeSessions
+            manager.getActiveSessions(component(context))
         } catch (_: SecurityException) {
+            // Notification listener access not granted. Expected, not exceptional.
             return@withContext null
         } catch (_: Exception) {
             return@withContext null
@@ -60,7 +65,7 @@ class NowPlayingRepository(private val context: Context) {
 
         sessions
             .asSequence()
-            .filter { it.playbackState?.state == MediaSession.PlaybackState.STATE_PLAYING }
+            .filter { it.playbackState?.state == PlaybackState.STATE_PLAYING }
             .maxByOrNull { it.playbackState?.position ?: 0L }
             ?.toNowPlaying()
     }
@@ -73,7 +78,7 @@ class NowPlayingRepository(private val context: Context) {
             title = meta?.title()?.toString().orEmpty().ifBlank { "Unknown track" },
             artist = meta?.artist()?.toString().orEmpty(),
             album = meta?.album()?.toString().orEmpty(),
-            playing = state?.state == MediaSession.PlaybackState.STATE_PLAYING,
+            playing = state?.state == PlaybackState.STATE_PLAYING,
             packageName = sessionComponent?.packageName.orEmpty(),
             durationMs = duration,
             positionMs = state?.position ?: 0L,
