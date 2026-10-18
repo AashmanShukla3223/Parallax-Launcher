@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Looper
+import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -116,24 +117,71 @@ class NowPlayingRepository(context: Context) {
     private val _state = MutableStateFlow(Transport())
     val state: StateFlow<Transport> = _state.asStateFlow()
 
+    /**
+     * Written on the main thread by the bind callback, read on the poll thread.
+     * Without volatile the poll can keep seeing null for an unbounded time, and
+     * a stale controller reference is exactly what makes a "session gone" look
+     * like a crash.
+     */
+    @Volatile
     private var controller: MediaController? = null
+
+    @Volatile
     private var boundToken: SessionToken? = null
     private var started = false
+
+    /**
+     * The caller's scope, kept so every controller call can be marshalled back
+     * to the main thread. See [onMain].
+     */
+    private var mainScope: CoroutineScope? = null
 
     /** Starts polling. Safe to call more than once; only the first call starts. */
     fun start(scope: CoroutineScope) {
         if (started) return
         started = true
+        mainScope = scope
         scope.launch(Dispatchers.Default) {
             while (true) {
-                val next = tick()
+                // Every tick is guarded. A launcher that crashes because one
+                // media read threw is worse than a launcher that shows stale
+                // track info, and the session can vanish between the check and
+                // the read.
+                val next = try {
+                    tick()
+                } catch (e: Exception) {
+                    Log.w("NowPlaying", "tick failed; retrying", e)
+                    _state.value
+                }
                 _state.value = next
                 delay(if (next.hasSession && next.playing) 500L else 2000L)
             }
         }
     }
 
+    /**
+     * Runs [block] on the main thread.
+     *
+     * **This is load-bearing, not stylistic.** A `MediaController` asserts the
+     * thread it was built on for every method call and throws
+     * `IllegalStateException: MediaController method is called from a wrong
+     * thread` otherwise. The controller is built on the main looper, so *every*
+     * read and every transport call has to come back to main — which the first
+     * version got wrong and crashed nine times the moment a real session
+     * appeared, having looked completely healthy through the empty state.
+     */
+    private fun onMain(block: () -> Unit) {
+        val s = mainScope
+        if (s == null) {
+            runCatching { block() }
+        } else {
+            s.launch { runCatching { block() } }
+        }
+    }
+
     private suspend fun tick(): Transport {
+        // Token resolution is the only part that may block, so it is the only
+        // part that goes to IO.
         val tokens = withContext(Dispatchers.IO) { activeTokens() }
             ?: return Transport(needsPermission = true)
 
@@ -153,7 +201,7 @@ class NowPlayingRepository(context: Context) {
             return Transport()
         }
 
-        return snapshot(held)
+        return withContext(Dispatchers.Main.immediate) { snapshot(held) }
     }
 
     /** Null means "no permission", empty means "nothing playing". */
@@ -204,9 +252,11 @@ class NowPlayingRepository(context: Context) {
     }
 
     private fun releaseController() {
-        controller?.let { runCatching { it.release() } }
+        val c = controller ?: return
         controller = null
         boundToken = null
+        // release() is a MediaController call, so it has to go through main too.
+        onMain { runCatching { c.release() } }
     }
 
     private fun snapshot(c: MediaController): Transport {
@@ -243,10 +293,15 @@ class NowPlayingRepository(context: Context) {
      * controller itself, and every failure is swallowed: a session disappearing
      * between pressing a key and the key landing is not worth a crash in a
      * launcher.
+     *
+     * Marshalled to main for the same reason as the poll: the controller
+     * rejects calls from any other thread.
      */
     private fun withController(block: (MediaController) -> Unit) {
-        val c = controller ?: return
-        runCatching { block(c) }
+        onMain {
+            val c = controller ?: return@onMain
+            runCatching { block(c) }
+        }
     }
 
     fun togglePlayPause() = withController { c ->
