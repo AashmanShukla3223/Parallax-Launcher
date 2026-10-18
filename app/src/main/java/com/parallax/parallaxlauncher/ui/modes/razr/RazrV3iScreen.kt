@@ -957,12 +957,33 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         val availH = maxHeight
         val shellChrome = 34.dp
         val hingeH = 14.dp
-        val panelH = availW * (220f / 176f)
-        val keypadNaturalH = availW * 1.02f
+
+        // The V3i closed is 98 x 63 x 13.99 mm, so it is a tall, narrow handset.
+        // Scaling purely to available width looks right on a phone and wrong
+        // everywhere else: on a tablet it spans 700dp and reads as a toy, and in
+        // landscape it collapses to an unusable sliver because width stops being
+        // the constraint. So cap it at a believable handset size, and let the
+        // physical proportions decide from there.
+        val maxW = minOf(availW, 400.dp)
+        val panelH = maxW * (220f / 176f)
+        val keypadNaturalH = maxW * 1.02f
         val naturalH = shellChrome + panelH + hingeH + keypadNaturalH
-        val fit = if (naturalH <= availH) 1f else (availH / naturalH)
-        val fittedWidth = availW * fit
-        val keypadHeight = keypadNaturalH * fit
+
+        // Shrink to fit whatever room is left, and grow to fill it when there is
+        // plenty. Never both: the smaller of "fits vertically" and "fills width"
+        // has to win, or on a tall narrow screen it overflows and the keypad
+        // falls off the bottom.
+        val fitByHeight = if (availH > 0.dp) (availH / naturalH).coerceAtMost(1f) else 1f
+        val fitByWidth = if (availW > 0.dp) (availW / maxW).coerceAtLeast(1f) else 1f
+        val fit = minOf(fitByHeight, fitByWidth)
+
+        // A squat screen (landscape phone, small window) cannot show the whole
+        // handset at a usable size. Rather than render something too small to
+        // tap, keep a floor and let the shell clip gracefully -- the deck is the
+        // part that must stay reachable.
+        val minW = 240.dp
+        val fittedWidth = (maxW * fit).coerceIn(minW, availW)
+        val keypadHeight = fittedWidth * 1.02f
 
         Column(
             modifier = Modifier.width(availW),
