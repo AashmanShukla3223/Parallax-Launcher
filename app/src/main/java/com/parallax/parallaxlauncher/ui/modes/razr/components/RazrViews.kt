@@ -54,7 +54,14 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** Bold humanist sans text, the closest safe stand-in for the stock Univers. */
+/**
+ * Bold humanist sans text, the closest safe stand-in for the stock Univers.
+ *
+ * [family] overrides the face for the rare places that need it — engineering
+ * codes are monospaced so the `*` and `#` line up column-wise down the list.
+ * The negative letter spacing is a tightening for the sans face and is dropped
+ * for monospace, where uniform advance is the whole point.
+ */
 @Composable
 private fun T(
     text: String,
@@ -64,13 +71,18 @@ private fun T(
     align: TextAlign = TextAlign.Start,
     maxLines: Int = 1,
     modifier: Modifier = Modifier,
+    family: FontFamily? = null,
 ) {
     Text(
         text = text,
         color = color,
         fontSize = size,
         fontWeight = weight,
-        letterSpacing = (-0.1).sp,
+        // Default rather than SansSerif when unset: these screens have always
+        // inherited the platform face via LocalTextStyle, and pinning a family
+        // here would quietly restyle every one of them.
+        fontFamily = family ?: FontFamily.Default,
+        letterSpacing = if (family == null) (-0.1).sp else TextUnit.Unspecified,
         textAlign = align,
         maxLines = maxLines,
         modifier = modifier,
@@ -1325,8 +1337,8 @@ fun RazrSecretCodeList(
                             entry.code,
                             ink,
                             16.sp,
-                            FontFamily.Monospace,
                             FontWeight.Bold,
+                            family = FontFamily.Monospace,
                             modifier = Modifier.weight(1f),
                         )
                         T(

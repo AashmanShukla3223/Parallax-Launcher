@@ -776,8 +776,9 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
             view == RazrView.SETTINGS -> if (subIndex >= 3) { subIndex -= 3; tonePlayer.playRazrChirp() }
             view == RazrView.TOOLS -> if (subIndex >= 3) { subIndex -= 3; tonePlayer.playRazrChirp() }
             // UP from the top of the list goes back to Tools, as it does from
-            // every other sub-page.
-            view == RazrView.SECRET_CODES ->
+            // every other sub-page. Braces are required: a when branch is a
+            // single expression and the chirp is a second statement.
+            view == RazrView.SECRET_CODES -> {
                 if (listIndex > 0) {
                     listIndex -= 1
                 } else {
@@ -785,6 +786,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
                     subIndex = RAZR_TOOLS_MENU.indexOfFirst { it.id == 208 }.coerceAtLeast(0)
                 }
                 tonePlayer.playRazrChirp()
+            }
             view == RazrView.MESSAGES -> if (subIndex > 0) { subIndex -= 1; tonePlayer.playRazrChirp() }
             view == RazrView.THEME -> if (subIndex > 0) { subIndex -= 1; tonePlayer.playRazrChirp() }
             view == RazrView.GAMES -> if (listIndex < RAZR_GAMES.lastIndex) { listIndex += 1; tonePlayer.playRazrChirp() }
