@@ -198,10 +198,16 @@ fun DrawScope.itunesButton(
     }
 }
 
-/** Triangles and bars, in a -1..1 space so they scale with the button. */
+/**
+ * Triangles and bars, in a -1..1 space so they scale with the button.
+ *
+ * These are `DrawScope` extensions rather than plain functions because they
+ * draw; [itunesButton] invokes them inside a translated DrawScope so callers
+ * just write `ItunesGlyphs.play(it)` without computing the button centre.
+ */
 object ItunesGlyphs {
     /** Solid right-pointing triangle: play. */
-    fun play(s: Float) {
+    fun DrawScope.play(s: Float) {
         val p = Path().apply {
             moveTo(-s * 0.55f, -s * 0.8f)
             lineTo(s * 0.85f, 0f)
@@ -212,7 +218,7 @@ object ItunesGlyphs {
     }
 
     /** Two bars: pause. */
-    fun pause(s: Float) {
+    fun DrawScope.pause(s: Float) {
         val w = s * 0.38f
         drawRect(
             color = ItunesSkin.ChromeInk,
@@ -227,7 +233,7 @@ object ItunesGlyphs {
     }
 
     /** Double triangle plus bar: previous / next. */
-    fun skipForward(s: Float) {
+    fun DrawScope.skipForward(s: Float) {
         for (i in 0..1) {
             val o = -s * 0.75f + i * s * 0.62f
             val p = Path().apply {
@@ -240,7 +246,7 @@ object ItunesGlyphs {
         }
     }
 
-    fun skipBack(s: Float) {
+    fun DrawScope.skipBack(s: Float) {
         for (i in 0..1) {
             val o = s * 0.75f - i * s * 0.62f
             val p = Path().apply {
@@ -254,7 +260,7 @@ object ItunesGlyphs {
     }
 
     /** Two chasing arrows: repeat. */
-    fun repeat(s: Float) {
+    fun DrawScope.repeat(s: Float) {
         val w = s * 0.34f
         val h = s * 0.9f
         // Top bar, right-pointing hook.
@@ -284,8 +290,10 @@ object ItunesGlyphs {
     }
 
     /** Single "1" bar for repeat-one, distinguished from plain repeat. */
-    fun repeatOne(s: Float) {
-        repeat(s)
+    fun DrawScope.repeatOne(s: Float) {
+        // Qualified: a bare repeat(s) resolves to the stdlib's repeat(times)
+        // first, which does not take a Float and fails to compile.
+        this.repeat(s)
         val bar = Path().apply {
             moveTo(0f, -s * 0.16f)
             lineTo(0f, s * 0.16f)
@@ -296,7 +304,7 @@ object ItunesGlyphs {
     }
 
     /** Crossing arrows: shuffle. */
-    fun shuffle(s: Float) {
+    fun DrawScope.shuffle(s: Float) {
         val w = s * 0.3f
         drawLine(
             ItunesSkin.ChromeInk,
