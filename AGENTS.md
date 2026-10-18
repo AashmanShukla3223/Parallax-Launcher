@@ -249,5 +249,27 @@ Session discovery is `MediaSessionManager.getActiveSessions(context, packageName
 Repeat and shuffle are the entire reason for Media3: `android.media.session.MediaController` has no `setRepeatMode` or `setShuffleMode` at all, because those are set on the *session* side and a launcher that is not the active player has no session.
 
 **The player has never been seen working with real audio.** It has only been exercised in its empty state, and there is no media file on any lab device yet. Treat the transport as unverified until it has been driven against a live session.
+
+### A launcher cannot take a Z Flip's cover display
+
+Do not attempt this again without new evidence. It was tried and does not work.
+
+On **both** a Galaxy Z Flip8 (SM-F776B, API 37) and a Z Flip5 (SM-F731B, API 34) folding shut gives:
+
+```
+Parallax windows: mDisplayId=0   (inner display, switched OFF while folded)
+cover display:    mDisplayId=1   com.android.systemui.subscreen.SubHomeActivity, uid 10060
+```
+
+The activity is **not** relocated to the cover display. The inner display is off, so anything drawn there is invisible, while Samsung's Subscreen home holds the screen that is actually showing.
+
+Three routes tried, all dead ends:
+
+- **`android:resizeableActivity`** — the wrong lever entirely. It governs resizing *within* a display and recreation on configuration change, not migration *across* `Display` instances. Adding it changed nothing observable.
+- **A setting** — none exists. `show_navigation_for_subscreen` and `cover_screen_show_notification_tip` are display preferences, not ownership.
+- **A window on the cover display** — `TYPE_APPLICATION_OVERLAY` via `SYSTEM_ALERT_WINDOW`, bound to the cover `Display`. The platform APIs for this are largely gone or hidden on compileSdk 37: `Context.createWindowContext` has no usable public 2-arg overload, `Display.TYPE_INTERNAL` / `FLAG_OWN_DISPLAY_ONLY` / `Display.type` do not resolve, and `DisplayManager.createDisplayContext` does not resolve either — even though `DisplayManager` itself resolves fine.
+
+`rememberFoldState()` in `ui/media/FoldState.kt` is kept because the detection is correct and genuinely useful: a real fold now closes the V3i flap. What survives is the takeover on the handset's **own** closed flip, which is testable and does work. What must not be claimed is that it covers a real folded Z Flip — it does not, and cannot be made to.
 - `local.properties`, `.idea/caches`, `/build` are gitignored. `.idea/misc.xml` has been committed before and shows up as unrelated noise in diffs — ignore it.
 - CI treats `main` and `master` as the integration branches; the repo is on `main`.
+

@@ -33,7 +33,6 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Surface
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
@@ -103,7 +102,6 @@ import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrNoSimNotice
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrSecretCodeList
 import com.parallax.parallaxlauncher.ui.media.ItunesLibrary
 import com.parallax.parallaxlauncher.ui.media.ItunesNowPlaying
-import com.parallax.parallaxlauncher.ui.media.CoverDisplayOverlay
 import com.parallax.parallaxlauncher.ui.media.CoverNowPlaying
 import com.parallax.parallaxlauncher.ui.media.MediaItem
 import com.parallax.parallaxlauncher.ui.media.MediaKind
@@ -237,35 +235,26 @@ fun RazrV3iScreen(
     // signal that. Without a hinge -- which is what the V3i's drawn flip looks
     // like to the OS -- closing the flap is the equivalent gesture.
     val fold by rememberFoldState()
-    val coverActive = if (fold.foldable) fold.foldedShut else flip <= 0.002f
-
-    // The takeover owns the entire window when the device is folded shut.
-    //
-    // It cannot live inside the clamshell layout. Folded, the system relocates
-    // this activity to the cover display -- a separate 948x1048 panel -- and
-    // what is left of the handset around the panel is a D-pad, a keypad and a
-    // hinge that do not exist there. Verified on a Galaxy Z Flip8: with the
-    // takeover nested in the handset layout, folding produced a blank cover
-    // screen while the panel rendered on the inner display, which the system
-    // had switched off.
-    if (coverActive) {
-        // On real foldables the activity is not relocated to the cover display
-        // by the platform, so the takeover is presented there as a window
-        // instead. Tried only when there is a cover display to draw on; the V3i's
-        // own simulated flip keeps using this layout.
-        if (fold.foldable) {
-            CoverDisplayOverlay.present(context) {
-                Surface(Modifier.fillMaxSize()) { CoverNowPlaying(transport) }
-            }
-        } else {
-            CoverNowPlaying(transport)
+    // Folding a real Z Flip closes the V3i flap, so the takeover comes up the
+    // same way it does when you close the flip by hand.
+    LaunchedEffect(fold.foldedShut) {
+        if (fold.foldedShut && flapOpen) {
+            flapOpen = false
+            haptics.thud()
         }
-        return
     }
-    // Unfolded, or on a device with no cover display: take the window down if
-    // it is up, or it would outlive the fold.
-    LaunchedEffect(coverActive) {
-        if (!coverActive && CoverDisplayOverlay.isShowing) CoverDisplayOverlay.dismiss(context)
+    val coverActive = flip <= 0.002f
+
+    // The takeover owns the whole screen when the flip is shut.
+    //
+    // On real foldables this still will not be visible: the platform does not
+    // move the activity to the cover display, and Samsung reserves that display
+    // for its own Subscreen home. Verified on a Z Flip8 (SM-F776B) and a Z
+    // Flip5 (SM-F731B) — see AGENTS.md. What is left here is the part that
+    // works: the takeover on the handset's own closed flip.
+    if (coverActive) {
+        CoverNowPlaying(transport)
+        return
     }
 
     fun loadLibrary() {
