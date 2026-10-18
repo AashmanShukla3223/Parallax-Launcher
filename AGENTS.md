@@ -252,7 +252,8 @@ Repeat and shuffle are the entire reason for Media3: `android.media.session.Medi
 
 ### A launcher cannot take a Z Flip's cover display
 
-Do not attempt this again without new evidence. It was tried and does not work.
+Removed entirely. Do not attempt this again without new evidence. It was tried,
+it did not work, and the code was deleted rather than left half-finished.
 
 On **both** a Galaxy Z Flip8 (SM-F776B, API 37) and a Z Flip5 (SM-F731B, API 34) folding shut gives:
 
@@ -269,7 +270,7 @@ Three routes tried, all dead ends:
 - **A setting** — none exists. `show_navigation_for_subscreen` and `cover_screen_show_notification_tip` are display preferences, not ownership.
 - **A window on the cover display** — `TYPE_APPLICATION_OVERLAY` via `SYSTEM_ALERT_WINDOW`, bound to the cover `Display`. The platform APIs for this are largely gone or hidden on compileSdk 37: `Context.createWindowContext` has no usable public 2-arg overload, `Display.TYPE_INTERNAL` / `FLAG_OWN_DISPLAY_ONLY` / `Display.type` do not resolve, and `DisplayManager.createDisplayContext` does not resolve either — even though `DisplayManager` itself resolves fine.
 
-`rememberFoldState()` in `ui/media/FoldState.kt` is kept because the detection is correct and genuinely useful: a real fold now closes the V3i flap. What survives is the takeover on the handset's **own** closed flip, which is testable and does work. What must not be claimed is that it covers a real folded Z Flip — it does not, and cannot be made to.
+`rememberFoldState()` and the closed-flip takeover were **removed** rather than left in a half-working state. The feature was deleted, `androidx.window` dropped, and the handset's closed flip went back to showing the cover panel it always had. The record above is kept because the finding is expensive and not visible from the source.
 - `local.properties`, `.idea/caches`, `/build` are gitignored. `.idea/misc.xml` has been committed before and shows up as unrelated noise in diffs — ignore it.
 - CI treats `main` and `master` as the integration branches; the repo is on `main`.
 

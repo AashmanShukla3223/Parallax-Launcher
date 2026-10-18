@@ -102,13 +102,11 @@ import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrNoSimNotice
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrSecretCodeList
 import com.parallax.parallaxlauncher.ui.media.ItunesLibrary
 import com.parallax.parallaxlauncher.ui.media.ItunesNowPlaying
-import com.parallax.parallaxlauncher.ui.media.CoverNowPlaying
 import com.parallax.parallaxlauncher.ui.media.MediaItem
 import com.parallax.parallaxlauncher.ui.media.MediaKind
 import com.parallax.parallaxlauncher.ui.media.MediaRepository
 import com.parallax.parallaxlauncher.ui.media.NowPlayingRepository
 import com.parallax.parallaxlauncher.ui.media.Transport
-import com.parallax.parallaxlauncher.ui.media.rememberFoldState
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrMessageMenu
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrNotificationAlert
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrPixelScreen
@@ -234,28 +232,11 @@ fun RazrV3iScreen(
     // to end when the device is unfolded, and nothing else on the device can
     // signal that. Without a hinge -- which is what the V3i's drawn flip looks
     // like to the OS -- closing the flap is the equivalent gesture.
-    val fold by rememberFoldState()
-    // Folding a real Z Flip closes the V3i flap, so the takeover comes up the
-    // same way it does when you close the flip by hand.
-    LaunchedEffect(fold.foldedShut) {
-        if (fold.foldedShut && flapOpen) {
-            flapOpen = false
-            haptics.thud()
-        }
-    }
-    val coverActive = flip <= 0.002f
-
-    // The takeover owns the whole screen when the flip is shut.
-    //
-    // On real foldables this still will not be visible: the platform does not
-    // move the activity to the cover display, and Samsung reserves that display
-    // for its own Subscreen home. Verified on a Z Flip8 (SM-F776B) and a Z
-    // Flip5 (SM-F731B) — see AGENTS.md. What is left here is the part that
-    // works: the takeover on the handset's own closed flip.
-    if (coverActive) {
-        CoverNowPlaying(transport)
-        return
-    }
+    // Fold detection was removed along with the closed-flip takeover. See
+    // AGENTS.md: Samsung keeps the Z Flip cover display for its own Subscreen
+    // home and does not relocate the launcher there, so a takeover could never
+    // be seen. The handset's own closed flip goes back to showing the cover
+    // panel it always did.
 
     fun loadLibrary() {
         mediaScope.launch {
