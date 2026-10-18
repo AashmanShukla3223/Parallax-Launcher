@@ -125,10 +125,17 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
-    // MediaControllerCompat, for transport control. The platform
+    // Media3, for transport control. The platform
     // android.media.session.MediaController has no repeat or shuffle, so the
     // iTunes-style player could not offer them without this.
-    implementation(libs.androidx.media)
+    //
+    // Deliberately Media3 and NOT androidx.media: the old
+    // MediaControllerCompat / MediaSessionManagerCompat were removed from
+    // androidx.media entirely. Verified rather than assumed -- pulled the AARs
+    // for 1.6.0, 1.7.0 and 1.8.0 and none of them ship
+    // androidx/media/session/MediaControllerCompat any more, so
+    // implementation(libs.androidx.media) compiles to nothing usable.
+    implementation(libs.androidx.media3.session)
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.lifecycle)

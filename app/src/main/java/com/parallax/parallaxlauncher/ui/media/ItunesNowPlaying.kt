@@ -16,12 +16,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.weight
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Path
@@ -300,8 +299,7 @@ private fun EmptyLcd(needsPermission: Boolean) {
         Box(
             Modifier
                 .fillMaxWidth()
-                .weight(1f)
-                .clip(CornerRadius(0.dp)),
+                .weight(1f),
         ) {
             Canvas(Modifier.fillMaxSize()) {
                 lcdWell(0f, 0f, size.width, size.height, radius = size.minDimension * 0.07f)

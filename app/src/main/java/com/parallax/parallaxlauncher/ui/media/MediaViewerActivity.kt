@@ -4,11 +4,6 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,6 +16,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -40,10 +40,11 @@ import com.parallax.parallaxlauncher.ui.theme.ParallaxLauncherTheme
  * up first, and so the launch is dismissible on the way out rather than leaving
  * a home screen behind it.
  *
- * Tapping the item shows the chooser rather than opening it here. A launcher
- * showing a picture is not what the user asked for when they tapped "Open with";
- * they asked for the app that shows pictures, and Parallax being one of the
- * options is the point.
+ * [MediaOpener.openWith] has already tried the real chooser by the time this
+ * panel appears. It is a fallback for the case where nothing on the device can
+ * handle the file — deliberately *not* the iTunes player, since this is a
+ * chooser that failed, not a track, and playback controls for a file nothing
+ * can play would be a lie.
  */
 class MediaViewerActivity : ComponentActivity() {
 
@@ -59,11 +60,9 @@ class MediaViewerActivity : ComponentActivity() {
                     val i = incoming ?: return@LaunchedEffect
                     val item = i.toMediaItem(context) ?: return@LaunchedEffect
                     resolved = item
-                    // Hand straight off. If there is nothing that can open it,
-                    // stay put and say so rather than silently finishing.
-                    if (!MediaOpener.openWith(context, item)) {
-                        resolved = item
-                    }
+                    // Hand straight off. If nothing can open it, stay put and say
+                    // so rather than silently finishing.
+                    MediaOpener.openWith(context, item)
                 }
 
                 OpenedItemPanel(
@@ -89,18 +88,14 @@ class MediaViewerActivity : ComponentActivity() {
             mime = mime,
         )
     }
+}
 
-    /**
- * Fallback shown when Parallax was picked from "Open with" but nothing on the
- * device can actually handle the file.
- *
- * Deliberately not the iTunes player. This is a chooser that failed, not a
- * track, and showing playback controls for a file nothing can play would be a
- * lie. [MediaOpener.openWith] has already tried the real chooser by the time
- * this appears.
- */
 @Composable
-private fun OpenedItemPanel(item: MediaItem?, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+private fun OpenedItemPanel(
+    item: MediaItem?,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(
         modifier
             .fillMaxSize()
