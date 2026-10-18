@@ -1228,6 +1228,8 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
                                     view = view,
                                     palette = palette,
                                     transport = transport,
+                                    tracks = tracks,
+                                    hasMediaPerm = hasMediaPermission(context),
                                     nowPlaying = nowPlaying,
                                     settings = settings,
                                     contacts = contacts,
@@ -1465,6 +1467,8 @@ private fun ActiveView(
     view: RazrView,
     palette: RazrPalette,
     transport: Transport,
+    tracks: List<MediaItem>,
+    hasMediaPerm: Boolean,
     nowPlaying: NowPlayingRepository,
     settings: Settings,
     contacts: List<RazrContact>,
@@ -1536,7 +1540,7 @@ private fun ActiveView(
         RazrView.ITUNES_LIBRARY -> ItunesLibrary(
             tracks = tracks,
             selectedIndex = listIndex,
-            hasPermission = hasMediaPermission(context),
+            hasPermission = hasMediaPerm,
         )
 
         RazrView.MESSAGES -> RazrMessageMenu(
