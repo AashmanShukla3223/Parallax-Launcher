@@ -70,7 +70,7 @@ fun ItunesNowPlaying(
     Box(modifier.fillMaxSize()) {
         Canvas(Modifier.fillMaxSize()) { brushedFace(radius = size.minDimension * 0.045f) }
 
-        if (!transport.hasSession) {
+        if (!transport.hasTrack) {
             EmptyLcd(transport.needsPermission)
             return@Box
         }

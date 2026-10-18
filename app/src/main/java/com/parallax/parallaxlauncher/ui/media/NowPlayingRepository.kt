@@ -42,7 +42,16 @@ enum class RepeatMode(val label: String) {
 
 /** Everything the player draws, and everything its keys act on. */
 data class Transport(
+    /** True while a media session is live and controllable right now. */
     val hasSession: Boolean = false,
+    /**
+     * True when there is a real track to display.
+     *
+     * Separate from [hasSession] because the two genuinely differ: pausing a
+     * track ends the session but not the track. The panel gates on this, and
+     * the transport row gates on [hasSession].
+     */
+    val hasTrack: Boolean = false,
     val playing: Boolean = false,
     val title: String = "",
     val artist: String = "",
@@ -131,6 +140,20 @@ class NowPlayingRepository(context: Context) {
     private var started = false
 
     /**
+     * Last snapshot that came from a real session.
+     *
+     * Held because `getActiveSessions` reports what is *currently* active: the
+     * moment a track pauses, Samsung Music marks its session inactive, the
+     * token list goes empty and the controller is torn down. Without this the
+     * panel blanks the instant you press pause, which is exactly backwards —
+     * every real player freezes on the paused track. Seen on an SM-F776B:
+     * pausing produced two controller Releases and an immediate "Play
+     * something and it shows up here".
+     */
+    @Volatile
+    private var lastKnown: Transport = Transport()
+
+    /**
      * The caller's scope, kept so every controller call can be marshalled back
      * to the main thread. See [onMain].
      */
@@ -187,7 +210,27 @@ class NowPlayingRepository(context: Context) {
 
         if (tokens.isEmpty()) {
             releaseController()
-            return Transport()
+            // Hold the last real track rather than blanking. `hasSession` is
+            // deliberately dropped so the panel still knows it is showing a
+            // paused track, and `playing` is false, so the transport row and
+            // the PLAY/PAUSE caption both settle correctly.
+            val held = lastKnown
+            return if (held.title.isBlank()) {
+                Transport()
+            } else {
+                Transport(
+                    hasTrack = true,
+                    title = held.title,
+                    artist = held.artist,
+                    album = held.album,
+                    durationMs = held.durationMs,
+                    positionMs = held.positionMs,
+                    repeat = held.repeat,
+                    shuffle = held.shuffle,
+                    artwork = held.artwork,
+                    playing = false,
+                )
+            }
         }
 
         val held = controller
@@ -202,6 +245,7 @@ class NowPlayingRepository(context: Context) {
         }
 
         return withContext(Dispatchers.Main.immediate) { snapshot(held) }
+            .also { lastKnown = it }
     }
 
     /** Null means "no permission", empty means "nothing playing". */
@@ -263,6 +307,7 @@ class NowPlayingRepository(context: Context) {
         val meta: MediaMetadata = c.mediaMetadata
         return Transport(
             hasSession = true,
+            hasTrack = true,
             // isPlaying rather than playbackState == PLAYING: Media3 keeps the
             // state coherent for us, and a paused track must still show.
             playing = c.isPlaying,

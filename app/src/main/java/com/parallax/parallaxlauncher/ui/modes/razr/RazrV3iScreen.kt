@@ -1011,9 +1011,11 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         view == RazrView.STANDBY -> "INBOX"
         view == RazrView.DIALING -> "CLEAR"
         view == RazrView.NO_SIM -> "BACK"
-        // The captions carry the live mode, so pressing the key that says
-        // REPEAT:ALL is never a guess about what it will do.
-        view == RazrView.ITUNES -> "REPEAT:" + transport.repeat.label
+        // Plain captions only. The left/right soft-key slots are a fixed 52dp, so
+        // "REPEAT:ALL" was silently clipped to "REPEAT" on device. State is
+        // carried by the button instead: it tints selection-blue when engaged
+        // and repeat-one draws a distinct glyph.
+        view == RazrView.ITUNES -> "REPEAT"
         view == RazrView.PHONEBOOK_ACTIONS -> "SELECT"
         else -> "BACK"
     }
@@ -1031,7 +1033,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         view == RazrView.IN_CALL -> "SPKR"
         view == RazrView.INCOMING -> "ANSWER"
         view == RazrView.DIALING -> "CANCEL"
-        view == RazrView.ITUNES -> if (transport.shuffle) "SHUFFLE:ON" else "SHUFFLE"
+        view == RazrView.ITUNES -> "SHUFFLE"
         view == RazrView.STANDBY -> "CLOSE FLIP"
         else -> "BACK"
     }
