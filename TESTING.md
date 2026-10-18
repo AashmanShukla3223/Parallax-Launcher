@@ -96,6 +96,18 @@ are left alone — this app posts no notifications of its own.
 
 # What to test
 
+## First things to check
+
+**Audio.** Press any key on the Mode 7 deck — you should hear a DTMF tone and
+the UI chirp. If the app is silent, check that nothing else is holding your
+music stream: play something in another app, or connect a Bluetooth speaker or
+DeX/Smart Switch session. Keys and tones now route independently of media, but
+a badly wedged audio HAL still needs a reboot to clear.
+
+**Onboarding.** It should name the apps currently holding your home screen and
+dialler. If it says something you did not expect, that is what Android thinks
+you are using — useful to know before blaming the app.
+
 ## The highest-value thing
 
 **Mode 7's soft keys do not respond when you tap the words.**
@@ -155,6 +167,11 @@ much rather know.
 So you do not spend time rediscovering them:
 
 - **The soft-key captions under the display are not tappable** (above).
+- **Mode 7 has no unlock code of its own.** Press `*` for the normal Android
+  screen and type your phone PIN. A 4-digit code set in CFG is no longer read;
+  CFG says so rather than setting a value nothing uses.
+- **If the app is silent**, suspect a stale audio route rather than the app —
+  see "First things to check" above.
 - **SIM insertion and removal is unverified** (above).
 - The emergency number table (~160 countries) and the 2G operator names
   (~110 rows) were derived from Wikipedia and only partly cross-checked
