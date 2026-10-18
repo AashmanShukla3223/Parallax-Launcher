@@ -33,6 +33,8 @@ enum class RazrView {
     /** A RAZR-exclusive game in progress. */
     GAME,
     TOOLS,
+    /** Browseable list of OEM engineering codes (`*#06#` and friends). */
+    SECRET_CODES,
     CALCULATOR,
     DATEBOOK,
     RINGTONES,
@@ -80,6 +82,7 @@ val RAZR_TOOLS_MENU = listOf(
     RazrMenuItem(205, "Alarm Clock", RazrIcon.ALARM),
     RazrMenuItem(206, "Dialing Services", RazrIcon.CALLS),
     RazrMenuItem(207, "Quick Dial", RazrIcon.PLAYLIST),
+    RazrMenuItem(208, "Secret Codes", RazrIcon.SECURITY),
 )
 
 /** Ring style profiles from the manual's Customize chapter. */

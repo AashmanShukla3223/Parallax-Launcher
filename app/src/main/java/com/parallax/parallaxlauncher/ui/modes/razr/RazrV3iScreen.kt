@@ -99,6 +99,7 @@ import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrKeypad
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrActionSheet
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrListScreen
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrNoSimNotice
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrSecretCodeList
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrMessageMenu
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrNotificationAlert
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrPixelScreen
@@ -374,16 +375,26 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         // not calls, and demanding CALL_PHONE to read a dump would be wrong.
         SecretCodes.detect(target)?.let { code ->
             dialBuffer = ""
-            if (SecretCodes.send(context, code)) {
-                tonePlayer.playRazrChirp()
-                // Set view directly rather than calling goHome(): local
-                // functions cannot be referenced before their declaration, and
-                // goHome is declared well below this one.
-                view = RazrView.STANDBY
-            } else {
-                // No foreign dialer to hand it to. Saying so plainly beats
-                // implying the code ran.
-                toast = "NO DIALER TO RUN CODES"
+            when {
+                // Distinguish "we won't run this" from "nowhere to run it",
+                // otherwise a blocked code reports as a missing dialer.
+                SecretCodes.isBlocked(code) -> {
+                    tonePlayer.playBusy()
+                    toast = "REFUSED: ${(SecretCodes.blockReason(code) ?: code).uppercase(Locale.ROOT)}"
+                }
+                SecretCodes.send(context, code) -> {
+                    tonePlayer.playRazrChirp()
+                    // Set view directly rather than calling goHome(): local
+                    // functions cannot be referenced before their declaration,
+                    // and goHome is declared well below this one.
+                    view = RazrView.STANDBY
+                }
+                else -> {
+                    // No foreign dialer to hand it to. Saying so plainly beats
+                    // implying the code ran.
+                    tonePlayer.playBusy()
+                    toast = "NO DIALER TO RUN CODES"
+                }
             }
             return
         }
@@ -651,6 +662,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         when (item.id) {
             201 -> view = RazrView.CALCULATOR
             205 -> open(Intent(AlarmClock.ACTION_SET_ALARM))
+            208 -> { view = RazrView.SECRET_CODES; listIndex = 0 }
             else -> { toast = item.title.uppercase(Locale.ROOT); goHome() }
         }
     }
@@ -763,6 +775,16 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
             view == RazrView.MAIN_MENU -> if (menuIndex >= 3) { menuIndex -= 3; tonePlayer.playRazrChirp() }
             view == RazrView.SETTINGS -> if (subIndex >= 3) { subIndex -= 3; tonePlayer.playRazrChirp() }
             view == RazrView.TOOLS -> if (subIndex >= 3) { subIndex -= 3; tonePlayer.playRazrChirp() }
+            // UP from the top of the list goes back to Tools, as it does from
+            // every other sub-page.
+            view == RazrView.SECRET_CODES ->
+                if (listIndex > 0) {
+                    listIndex -= 1
+                } else {
+                    view = RazrView.TOOLS
+                    subIndex = RAZR_TOOLS_MENU.indexOfFirst { it.id == 208 }.coerceAtLeast(0)
+                }
+                tonePlayer.playRazrChirp()
             view == RazrView.MESSAGES -> if (subIndex > 0) { subIndex -= 1; tonePlayer.playRazrChirp() }
             view == RazrView.THEME -> if (subIndex > 0) { subIndex -= 1; tonePlayer.playRazrChirp() }
             view == RazrView.GAMES -> if (listIndex < RAZR_GAMES.lastIndex) { listIndex += 1; tonePlayer.playRazrChirp() }
@@ -794,6 +816,11 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
                 if (subIndex <= RAZR_SETTINGS_MENU.size - 4) { subIndex += 3; tonePlayer.playRazrChirp() }
             view == RazrView.TOOLS ->
                 if (subIndex <= RAZR_TOOLS_MENU.size - 4) { subIndex += 3; tonePlayer.playRazrChirp() }
+            view == RazrView.SECRET_CODES ->
+                if (listIndex < SecretCodes.reference.lastIndex) {
+                    listIndex += 1
+                    tonePlayer.playRazrChirp()
+                }
             view == RazrView.MESSAGES -> if (subIndex < 2) { subIndex += 1; tonePlayer.playRazrChirp() }
             view == RazrView.THEME ->
                 if (subIndex < RazrFinish.entries.lastIndex) { subIndex += 1; tonePlayer.playRazrChirp() }
@@ -852,6 +879,24 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
             RazrView.MAIN_MENU -> selectMenuItem(RAZR_MAIN_MENU[menuIndex.coerceIn(RAZR_MAIN_MENU.indices)])
             RazrView.SETTINGS -> selectSettingsItem(RAZR_SETTINGS_MENU[subIndex.coerceIn(RAZR_SETTINGS_MENU.indices)])
             RazrView.TOOLS -> selectToolsItem(RAZR_TOOLS_MENU[subIndex.coerceIn(RAZR_TOOLS_MENU.indices)])
+            // SELECT stages the code in the dial buffer rather than running it.
+            // The user then presses SEND, which hands it to a real dialer -- the
+            // only component permitted to dispatch these.
+            RazrView.SECRET_CODES -> {
+                val entry = SecretCodes.reference[listIndex.coerceIn(SecretCodes.reference.indices)]
+                if (entry.blocked) {
+                    // Say why rather than silently doing nothing, so someone
+                    // who searched for this learns the app is refusing on
+                    // purpose.
+                    tonePlayer.playBusy()
+                    toast = "REFUSED: ${entry.label.uppercase(Locale.ROOT)}"
+                } else {
+                    dialBuffer = entry.code
+                    view = RazrView.DIALING
+                    tonePlayer.playRazrChirp()
+                    toast = "PRESS SEND TO RUN ${entry.code}"
+                }
+            }
             RazrView.MESSAGES -> when (subIndex) {
                 0 -> { view = RazrView.INBOX; listIndex = 0 }
                 1 -> open(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${settings.razrVoicemailNumber}")))
@@ -1362,6 +1407,8 @@ private fun ActiveView(
 
         RazrView.TOOLS -> RazrIconGrid(palette, RAZR_TOOLS_MENU, subIndex)
 
+        RazrView.SECRET_CODES -> RazrSecretCodeList(palette, listIndex)
+
         RazrView.MESSAGES -> RazrMessageMenu(
             palette = palette,
             entries = RAZR_MESSAGE_ENTRIES,
@@ -1660,6 +1707,7 @@ private fun titleFor(view: RazrView, isRinging: Boolean, currentGameTitle: Strin
     view == RazrView.RINGTONES -> "Ring Styles"
     view == RazrView.THEME -> "Themes"
     view == RazrView.TOOLS -> "Tools"
+    view == RazrView.SECRET_CODES -> "Secret Codes"
     view == RazrView.IN_CALL -> "In Call"
     view == RazrView.DIALING -> "Dialing"
     view == RazrView.MESSAGES -> "Messages"

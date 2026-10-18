@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.TextUnit
@@ -42,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import com.parallax.parallaxlauncher.core.model.AppInfo
 import com.parallax.parallaxlauncher.core.notifications.Headline
 import com.parallax.parallaxlauncher.core.notifications.Intercepted
+import com.parallax.parallaxlauncher.core.telecom.SecretCodes
 import com.parallax.parallaxlauncher.ui.modes.razr.RazrIcon
 import com.parallax.parallaxlauncher.ui.modes.razr.RazrIconGlyph
 import com.parallax.parallaxlauncher.ui.modes.razr.RazrIconTints
@@ -1272,6 +1274,92 @@ fun RazrMessageMenu(
         ) {
             T("In-app alert here", palette.selectLow, 9.4.sp, FontWeight.Bold)
             T("System alert elsewhere", palette.inkDim, 9.4.sp, FontWeight.Bold, TextAlign.End)
+        }
+    }
+}
+
+/**
+ * Browseable list of OEM engineering codes.
+ *
+ * Parallax cannot dispatch these itself: sending the broadcast needs
+ * `MODIFY_PHONE_STATE`, a signature permission no launcher can hold. So this is
+ * a reference, not a remote control — SELECT copies a code into the dial
+ * buffer and SEND hands it to a real dialer, which is the component that does
+ * hold the permission. See [SecretCodes] for the full explanation.
+ */
+@Composable
+fun RazrSecretCodeList(
+    palette: RazrPalette,
+    selectedIndex: Int,
+    modifier: Modifier = Modifier,
+) {
+    val entries = SecretCodes.reference
+    val safe = selectedIndex.coerceIn(0, (entries.size - 1).coerceAtLeast(0))
+    Column(
+        modifier
+            .fillMaxSize()
+            .background(palette.field)
+    ) {
+        LazyColumn(Modifier.weight(1f)) {
+            itemsIndexed(entries) { index, entry ->
+                val selected = index == safe
+                val ink = if (selected) palette.selectInk else palette.ink
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(
+                            if (selected) {
+                                Brush.horizontalGradient(listOf(palette.selectTop, palette.selectLow))
+                            } else SolidColor(Color.Transparent)
+                        )
+                        .padding(horizontal = 6.dp, vertical = 5.dp),
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        // Monospace so the * and # line up column-wise down the
+                        // list; the digits are meaningless in a proportional face.
+                        T(
+                            entry.code,
+                            ink,
+                            16.sp,
+                            FontFamily.Monospace,
+                            FontWeight.Bold,
+                            modifier = Modifier.weight(1f),
+                        )
+                        T(
+                            entry.brands,
+                            if (selected) palette.selectInk else palette.inkDim,
+                            9.4.sp,
+                            FontWeight.Bold,
+                            TextAlign.End,
+                        )
+                    }
+                    T(
+                        entry.label,
+                        when {
+                            entry.blocked -> palette.alert
+                            selected -> palette.selectInk
+                            else -> palette.inkDim
+                        },
+                        11.sp,
+                        if (selected || entry.blocked) FontWeight.Bold else FontWeight.Normal,
+                        maxLines = 2,
+                    )
+                }
+            }
+        }
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .background(palette.fieldAlt)
+                .padding(horizontal = 5.dp, vertical = 3.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            T("SELECT COPIES CODE", palette.selectLow, 9.4.sp, FontWeight.Bold)
+            T("SEND HANDS TO DIALER", palette.inkDim, 9.4.sp, FontWeight.Bold, TextAlign.End)
         }
     }
 }

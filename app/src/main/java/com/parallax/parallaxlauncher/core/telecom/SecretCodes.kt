@@ -45,12 +45,19 @@ import android.util.Log
 object SecretCodes {
 
     /**
-     * A secret code is `*#` … `#*` or `*#…#`. Both delimiters are required, and
-     * the middle must be at least one character. That is narrow on purpose: a
-     * bare `*` is the unlock key on Mode 7 and `*#…#*` is a distinct vendor
-     * family, so neither should be swallowed here.
+     * Two shapes, because OEMs use two.
+     *
+     * `*#06#` is the Samsung/Microsoft family: `*#`, payload, `#`. The other is
+     * `*#*#6485#*#*`, which pads *both* delimiters and is what almost every other
+     * vendor uses — Pixel, Xiaomi, Oppo, Vivo, MediaTek, Qualcomm. Missing the
+     * second shape is not cosmetic: those codes would not be recognised as codes
+     * at all, so staging one from the reference list and pressing SEND would
+     * fall through to *dialling* it.
+     *
+     * Both alternatives require their full delimiters and at least one character
+     * of payload. A bare `*` is the unlock key on Mode 7 and must not match.
      */
-    private val PATTERN = Regex("""\*#(.+)#""")
+    private val PATTERN = Regex("""(\*#\*#.+\#\*#\*)|(\*#.+\#)""")
 
     /** The code if [raw] is a secret code, else null. */
     fun detect(raw: String): String? = raw.trim().takeIf { PATTERN.matches(it) }
@@ -81,6 +88,13 @@ object SecretCodes {
      * package is therefore considered, and only a foreign dialer is eligible.
      */
     fun send(context: Context, code: String): Boolean {
+        // Refuse the destructive family here rather than trusting every caller to
+        // have checked. This is the last gate before the code reaches a dialer
+        // that genuinely can run it.
+        if (isBlocked(code)) {
+            Log.w("SecretCodes", "refused blocked code ${blockReason(code) ?: code}")
+            return false
+        }
         val intent = Intent(Intent.ACTION_DIAL).apply {
             data = Uri.fromParts("tel", code, null)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -122,21 +136,29 @@ object SecretCodes {
         val code: String,
         val label: String,
         val brands: String,
+        /**
+         * True for the destructive family. These are listed so someone who
+         * searches for them learns why they are unavailable, but [send]
+         * refuses them and the UI will not stage them.
+         */
+        val blocked: Boolean = false,
     )
 
     /**
      * A browsable reference, grouped by the brand that documents each code.
      *
-     * Shown in the app so the list is discoverable without a web search — the
-     * codes themselves are dispatched to the system, never interpreted here.
+     * Several codes are shared across brands — `*#*#6485#*#*` appears under five.
+     * [reference] folds those into a single row with the brands merged, because
+     * this list is scrolled with a D-pad and five identical rows is five presses
+     * to say something already said once.
      */
-    val reference: List<Entry> = listOf(
+    val reference: List<Entry> = byCode(
         // --- Samsung ---------------------------------------------------------
         Entry("*#06#", "IMEI, serial, hardware and SIM status", "Samsung"),
         Entry("*#0*#", "Full device dump: logcat, bugreport, dumpsys", "Samsung"),
         Entry("*#1234#", "Product and hardware identity", "Samsung"),
-        Entry("*#*#7788#*#*", "Factory reset. NOT DISPATCHED", "Samsung"),
-        Entry("*#*#123456789#*#*", "Write IMEI / serial. NOT DISPATCHED", "Samsung"),
+        Entry("*#*#7788#*#*", "Factory reset", "Samsung", blocked = true),
+        Entry("*#*#123456789#*#*", "Writes the IMEI. Illegal in many countries", "Samsung", blocked = true),
 
         // --- Google / Pixel --------------------------------------------------
         Entry("*#*#4834#*#*", "Full dump: bugreport, logcat, dumpsys", "Google Pixel"),
@@ -178,11 +200,40 @@ object SecretCodes {
     )
 
     /**
-     * Codes deliberately excluded from [reference] being dispatchable.
+     * Folds entries that share a code into one row, concatenating the brands.
      *
-     * Shown in the UI as a warning rather than silently omitted, because someone
-     * with a dead phone may well search for these and should learn why they are
-     * not offered.
+     * Keeps the first description, on the assumption the earliest mention is the
+     * canonical one. Order follows first appearance so the list still reads
+     * grouped by brand rather than shuffled.
+     */
+    private fun byCode(vararg entries: Entry): List<Entry> {
+        val order = LinkedHashMap<String, Entry>()
+        for (e in entries) {
+            val existing = order[e.code]
+            order[e.code] = if (existing == null) {
+                e
+            } else {
+                existing.copy(
+                    brands = listOf(existing.brands, e.brands)
+                        .flatMap { it.split(", ") }
+                        .distinct()
+                        .joinToString(", "),
+                    // Any mention marking it blocked blocks it.
+                    blocked = existing.blocked || e.blocked,
+                )
+            }
+        }
+        return order.values.toList()
+    }
+
+    /**
+     * Codes deliberately excluded from being dispatchable.
+     *
+     * Listed rather than silently omitted, because someone with a dead phone may
+     * well search for these and should learn why they are not offered. The first
+     * two also appear in [reference] flagged `blocked` so they sit next to the
+     * read-only codes they are confused with; the rest are known variants that
+     * are not worth cluttering the list with.
      */
     val refused: List<Pair<String, String>> = listOf(
         "*#*#7788#*#*" to "Factory reset. Erase the device instead, deliberately.",
@@ -190,4 +241,26 @@ object SecretCodes {
         "*#*#3218737#*#*" to "Factory reset (MediaTek).",
         "*#*#235#*#*" to "Writes IMEI on some Qualcomm builds.",
     )
+
+    /**
+     * Every code [send] will refuse, from both [reference] and [refused].
+     *
+     * Checked on the typed path as well as the UI path. Typing `*#*#7788#*#*` on
+     * the keypad matches [detect], so without this the destructive family would
+     * be reachable by hand even though the list marks it unavailable.
+     */
+    private val BLOCKED: Set<String> = buildSet {
+        reference.filter { it.blocked }.forEach { add(it.code) }
+        refused.forEach { add(it.first) }
+    }
+
+    /** True if [code] is in the destructive family and must not be handed on. */
+    fun isBlocked(code: String): Boolean = code.trim() in BLOCKED
+
+    /** Why [code] is refused, or null if it is allowed. */
+    fun blockReason(code: String): String? {
+        val c = code.trim()
+        refused.firstOrNull { it.first == c }?.let { return it.second }
+        return reference.firstOrNull { it.code == c && it.blocked }?.label
+    }
 }
