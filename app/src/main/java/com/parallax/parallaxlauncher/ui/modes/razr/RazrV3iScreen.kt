@@ -100,6 +100,9 @@ import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrActionSheet
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrListScreen
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrNoSimNotice
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrSecretCodeList
+import com.parallax.parallaxlauncher.ui.media.ItunesNowPlaying
+import com.parallax.parallaxlauncher.ui.media.NowPlayingRepository
+import com.parallax.parallaxlauncher.ui.media.Transport
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrMessageMenu
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrNotificationAlert
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrPixelScreen
@@ -120,6 +123,7 @@ import com.parallax.parallaxlauncher.ui.modes.razr.games.RazrGameHost
 import com.parallax.parallaxlauncher.ui.modes.razr.games.RazrGamesMenu
 import com.parallax.parallaxlauncher.ui.modes.razr.games.RazrScores
 import kotlinx.coroutines.delay
+import androidx.compose.runtime.rememberCoroutineScope
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -202,6 +206,14 @@ fun RazrV3iScreen(
     var toast by rememberSaveable { mutableStateOf<String?>(null) }
     // Bumped on every outgoing attempt so the watchdog below re-arms per call.
     var dialAttempt by remember { mutableStateOf(0) }
+
+    // Now Playing. One repository for the screen, polling on a scope that dies
+    // with the composition, so leaving Mode 7 stops the tick rather than
+    // leaving a 2 Hz loop running behind a launcher the user has swiped away.
+    val mediaScope = rememberCoroutineScope()
+    val nowPlaying = remember { NowPlayingRepository(context) }
+    LaunchedEffect(Unit) { nowPlaying.start(mediaScope) }
+    val transport by nowPlaying.state.collectAsState()
 
     val contactsPermLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -638,7 +650,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
             3 -> { openContacts(); goHome() }
             4 -> openBrowser()
             5 -> { view = RazrView.GAMES; listIndex = 0 }
-            6 -> { view = RazrView.RINGTONES; listIndex = 0 }
+            6 -> { view = RazrView.ITUNES }
             7 -> { view = RazrView.TOOLS; subIndex = 0 }
             8 -> { view = RazrView.SETTINGS; subIndex = 0 }
             9 -> openCamera()
@@ -796,6 +808,9 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
             view == RazrView.PHONEBOOK_ACTIONS ->
                 if (contactActionIndex > 0) { contactActionIndex -= 1; tonePlayer.playRazrChirp() }
             view == RazrView.IN_CALL -> { callVolume = (callVolume + 1).coerceAtMost(10); tonePlayer.playRazrChirp() }
+            // UP on the player is "previous track", matching every other player
+            // ever built, and deliberately not "back" — leaving is BACK's job.
+            view == RazrView.ITUNES -> { tonePlayer.playRazrChirp(); nowPlaying.previous() }
         }
     }
 
@@ -835,6 +850,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
             view == RazrView.PHONEBOOK_ACTIONS ->
                 if (contactActionIndex < CONTACT_ACTIONS.lastIndex) { contactActionIndex += 1; tonePlayer.playRazrChirp() }
             view == RazrView.IN_CALL -> { callVolume = (callVolume - 1).coerceAtLeast(1); tonePlayer.playRazrChirp() }
+            view == RazrView.ITUNES -> { tonePlayer.playRazrChirp(); nowPlaying.next() }
         }
     }
 
@@ -846,6 +862,14 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
             view == RazrView.MAIN_MENU -> if (menuIndex % 3 > 0) { menuIndex -= 1; tonePlayer.playRazrChirp() }
             view == RazrView.SETTINGS -> if (subIndex % 3 > 0) { subIndex -= 1; tonePlayer.playRazrChirp() }
             view == RazrView.TOOLS -> if (subIndex % 3 > 0) { subIndex -= 1; tonePlayer.playRazrChirp() }
+            // LEFT and RIGHT scrub rather than skip. On a panel this size there
+            // is no room for both meanings on one key pair, and mid-song the
+            // thing you want is to move. Track skipping lives on UP/DOWN.
+            view == RazrView.ITUNES -> {
+                haptics.click()
+                nowPlaying.nudge(-SEEK_STEP_MS)
+                toast = "-${SEEK_STEP_MS / 1000}s"
+            }
         }
     }
 
@@ -857,6 +881,11 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
             view == RazrView.MAIN_MENU -> if (menuIndex % 3 < 2) { menuIndex += 1; tonePlayer.playRazrChirp() }
             view == RazrView.SETTINGS -> if (subIndex % 3 < 2) { subIndex += 1; tonePlayer.playRazrChirp() }
             view == RazrView.TOOLS -> if (subIndex % 3 < 2) { subIndex += 1; tonePlayer.playRazrChirp() }
+            view == RazrView.ITUNES -> {
+                haptics.click()
+                nowPlaying.nudge(SEEK_STEP_MS)
+                toast = "+${SEEK_STEP_MS / 1000}s"
+            }
         }
     }
 
@@ -866,6 +895,11 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         when (view) {
             RazrView.STANDBY -> { view = RazrView.MAIN_MENU; menuIndex = 0; tonePlayer.playRazrChirp() }
             RazrView.DIALING -> startCall(dialBuffer, permLauncher, roleLauncher)
+            // SELECT is play/pause on the player, as it is on every player.
+            RazrView.ITUNES -> {
+                tonePlayer.playDtmf(' ')
+                nowPlaying.togglePlayPause()
+            }
         // The stock phonebook does not call straight away; SELECT opens the
         // action sheet, which is the only way Call / Message / Copy are
         // reachable on a three-soft-key panel.
@@ -943,6 +977,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
             RazrView.STANDBY -> { view = RazrView.INBOX; listIndex = 0 }
             RazrView.IN_CALL -> CallManager.mute(!isMuted)
             RazrView.INCOMING -> CallManager.reject()
+            RazrView.ITUNES -> nowPlaying.cycleRepeat()
             // The caption here is CLEAR and the screen says "Clear erases the
             // last digit", but there was no DIALING branch, so it fell through
             // to goHome() and threw away the whole number along with the screen.
@@ -963,6 +998,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
             RazrView.IN_CALL -> CallManager.speaker(!isSpeaker)
             RazrView.INCOMING -> answerOrRefuse()
             RazrView.DIALING -> { dialBuffer = ""; goHome() }
+            RazrView.ITUNES -> nowPlaying.toggleShuffle()
             else -> goHome()
         }
     }
@@ -975,6 +1011,9 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         view == RazrView.STANDBY -> "INBOX"
         view == RazrView.DIALING -> "CLEAR"
         view == RazrView.NO_SIM -> "BACK"
+        // The captions carry the live mode, so pressing the key that says
+        // REPEAT:ALL is never a guess about what it will do.
+        view == RazrView.ITUNES -> "REPEAT:" + transport.repeat.label
         view == RazrView.PHONEBOOK_ACTIONS -> "SELECT"
         else -> "BACK"
     }
@@ -984,6 +1023,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         view == RazrView.INCOMING -> "ANSWER"
         view == RazrView.STANDBY -> "MENU"
         view == RazrView.DIALING -> "SEND"
+        view == RazrView.ITUNES -> if (transport.playing) "PAUSE" else "PLAY"
         else -> "SELECT"
     }
     val softRight = when {
@@ -991,6 +1031,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         view == RazrView.IN_CALL -> "SPKR"
         view == RazrView.INCOMING -> "ANSWER"
         view == RazrView.DIALING -> "CANCEL"
+        view == RazrView.ITUNES -> if (transport.shuffle) "SHUFFLE:ON" else "SHUFFLE"
         view == RazrView.STANDBY -> "CLOSE FLIP"
         else -> "BACK"
     }
@@ -1123,6 +1164,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
                                 else -> ActiveView(
                                     view = view,
                                     palette = palette,
+                                    transport = transport,
                                     settings = settings,
                                     contacts = contacts,
                                     contactsRequested = contactsRequested,
@@ -1354,6 +1396,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
 private fun ActiveView(
     view: RazrView,
     palette: RazrPalette,
+    transport: Transport,
     settings: Settings,
     contacts: List<RazrContact>,
     contactsRequested: Boolean,
@@ -1410,6 +1453,16 @@ private fun ActiveView(
         RazrView.TOOLS -> RazrIconGrid(palette, RAZR_TOOLS_MENU, subIndex)
 
         RazrView.SECRET_CODES -> RazrSecretCodeList(palette, listIndex)
+
+        RazrView.ITUNES -> ItunesNowPlaying(
+            transport = transport,
+            onScrubFraction = { f -> nowPlaying.seekTo((f * transport.durationMs).toLong()) },
+            onPlayPause = { nowPlaying.togglePlayPause() },
+            onPrevious = { nowPlaying.previous() },
+            onNext = { nowPlaying.next() },
+            onCycleRepeat = { nowPlaying.cycleRepeat() },
+            onToggleShuffle = { nowPlaying.toggleShuffle() },
+        )
 
         RazrView.MESSAGES -> RazrMessageMenu(
             palette = palette,
@@ -1636,6 +1689,15 @@ private enum class ContactAction(val label: String) {
     BACK("Back"),
 }
 
+/**
+ * How far LEFT/RIGHT nudge the playhead.
+ *
+ * Five seconds. Ten is too coarse to land on a line change, two is too fine to
+ * cross a chorus without holding the key, and the deck has no repeat-rate
+ * acceleration to fall back on.
+ */
+private const val SEEK_STEP_MS = 5_000L
+
 private val CONTACT_ACTIONS = listOf(
     ContactAction.CALL,
     ContactAction.MESSAGE,
@@ -1709,6 +1771,7 @@ private fun titleFor(view: RazrView, isRinging: Boolean, currentGameTitle: Strin
     view == RazrView.RINGTONES -> "Ring Styles"
     view == RazrView.THEME -> "Themes"
     view == RazrView.TOOLS -> "Tools"
+    view == RazrView.ITUNES -> "Now Playing"
     view == RazrView.SECRET_CODES -> "Secret Codes"
     view == RazrView.IN_CALL -> "In Call"
     view == RazrView.DIALING -> "Dialing"

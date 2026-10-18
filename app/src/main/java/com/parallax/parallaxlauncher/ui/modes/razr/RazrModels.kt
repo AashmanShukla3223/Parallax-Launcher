@@ -35,6 +35,11 @@ enum class RazrView {
     TOOLS,
     /** Browseable list of OEM engineering codes (`*#06#` and friends). */
     SECRET_CODES,
+    /**
+     * Now Playing, drawn as 2005 iTunes — the software the V3i actually shipped
+     * with, which is what the "i" in its name meant.
+     */
+    ITUNES,
     CALCULATOR,
     DATEBOOK,
     RINGTONES,

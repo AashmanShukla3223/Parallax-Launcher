@@ -9,9 +9,28 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.parallax.parallaxlauncher.ui.theme.ParallaxLauncherTheme
 
 /**
@@ -47,12 +66,10 @@ class MediaViewerActivity : ComponentActivity() {
                     }
                 }
 
-                NowPlayingPanel(
-                    nowPlaying = resolved?.let { fakeNowPlaying(it) },
-                    sourceLabel = "OPENED FROM ANOTHER APP",
-                    onEmptyAction = { finish() },
+                OpenedItemPanel(
+                    item = resolved,
+                    onDismiss = { finish() },
                     modifier = Modifier,
-                    background = Color(0xFF0E0F11),
                 )
             }
         }
@@ -73,12 +90,57 @@ class MediaViewerActivity : ComponentActivity() {
         )
     }
 
-    private fun fakeNowPlaying(item: MediaItem) = NowPlaying(
-        title = item.title,
-        artist = item.mime,
-        album = "",
-        playing = false,
-        durationMs = 0L,
-        positionMs = 0L,
-    )
+    /**
+ * Fallback shown when Parallax was picked from "Open with" but nothing on the
+ * device can actually handle the file.
+ *
+ * Deliberately not the iTunes player. This is a chooser that failed, not a
+ * track, and showing playback controls for a file nothing can play would be a
+ * lie. [MediaOpener.openWith] has already tried the real chooser by the time
+ * this appears.
+ */
+@Composable
+private fun OpenedItemPanel(item: MediaItem?, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+    Column(
+        modifier
+            .fillMaxSize()
+            .background(Color(0xFF0E0F11))
+            .padding(20.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            item?.title ?: "Nothing to open",
+            color = Color(0xFFFF9500),
+            fontFamily = FontFamily.Monospace,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "No installed app can open this file.",
+            color = Color(0xFF8A8A93),
+            fontFamily = FontFamily.Monospace,
+            fontSize = 12.sp,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(20.dp))
+        Box(
+            Modifier
+                .background(Color(0xFFFF9500), RoundedCornerShape(8.dp))
+                .clickable(onClick = onDismiss)
+                .padding(horizontal = 24.dp, vertical = 12.dp),
+        ) {
+            Text(
+                "BACK",
+                color = Color(0xFF0A0A0B),
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+    }
 }

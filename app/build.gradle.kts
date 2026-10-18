@@ -125,6 +125,10 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    // MediaControllerCompat, for transport control. The platform
+    // android.media.session.MediaController has no repeat or shuffle, so the
+    // iTunes-style player could not offer them without this.
+    implementation(libs.androidx.media)
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.lifecycle)
