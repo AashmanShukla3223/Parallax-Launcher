@@ -56,9 +56,10 @@ android {
         minSdk = 27
         targetSdk = 37
         // versionCode must strictly increase for Android to accept a build as
-        // an update over an installed one. v1.0.0 was 1, v1.0.1 was 2.
-        versionCode = 3
-        versionName = "1.0.2"
+        // an update over an installed one. v1.0.0 was 1, v1.0.1 was 2,
+        // v1.0.2 was 3.
+        versionCode = 4
+        versionName = "1.0.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
