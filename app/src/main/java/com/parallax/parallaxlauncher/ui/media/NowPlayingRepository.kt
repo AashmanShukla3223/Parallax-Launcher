@@ -53,7 +53,7 @@ data class Transport(
     /** True when permission is missing, so the UI can say why rather than "nothing". */
     val needsPermission: Boolean = false,
 ) {
-    val progress(): Float =
+    fun progress(): Float =
         if (durationMs > 0) (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
 
     /** Time left, which is what iTunes showed on the right of the readout. */
@@ -169,14 +169,15 @@ class NowPlayingRepository(context: Context) {
     /**
      * Binds a controller and adopts it once the future resolves.
      *
-     * `setLooper` is explicit because the poll runs on a background dispatcher
-     * with no thread-local Looper; without it Media3 throws rather than
-     * defaulting somewhere useful.
+     * `setApplicationLooper` is explicit because the poll runs on a background
+     * dispatcher with no thread-local Looper, and Media3 throws rather than
+     * defaulting somewhere useful. (It is `setApplicationLooper`, not
+     * `setLooper` — there is no `setLooper` on MediaController.Builder.)
      */
     private fun bind(token: SessionToken) {
         val future = try {
             MediaController.Builder(appContext, token)
-                .setLooper(Looper.getMainLooper())
+                .setApplicationLooper(Looper.getMainLooper())
                 .buildAsync()
         } catch (_: Exception) {
             return
