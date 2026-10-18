@@ -90,17 +90,20 @@ object CoverDisplayOverlay {
                     ?: return@runCatching fail("no cover display (state=${context.display?.state})")
 
                 if (composeView == null) {
-                    val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-                    // A window context is required: a View from the activity's
-                    // context carries the activity's display with it, so
-                    // adding it to the default window manager lands it back on
-                    // the inner screen.
-                    val ctx = context.createWindowContext(
-                        // By display id, not by Display: the Display overload
-                        // resolves to nothing usable here.
-                        display.displayId,
-                        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                    )
+                    // A display-bound context is required: a View from the
+                    // activity's context carries the activity's display with
+                    // it, so adding it to the default window manager lands it
+                    // back on the inner screen.
+                    //
+                    // DisplayManager.createDisplayContext rather than
+                    // Context.createWindowContext. The window-context overloads
+                    // are not usable from here -- the two-arg one is not public
+                    // on this SDK and the three-arg one binds a Bundle that is
+                    // not needed -- and createDisplayContext is public, has been
+                    // since API 17, and does the one job required here.
+                    val dm = context.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+                    val ctx = dm.createDisplayContext(display)
+                    val wm = ctx.getSystemService(Context.WINDOW_SERVICE) as WindowManager
                     windowContext = ctx
 
                     val view = ComposeView(ctx).apply {
@@ -136,7 +139,10 @@ object CoverDisplayOverlay {
     fun dismiss(context: Context): Boolean = onMainBlocking {
         val view = composeView ?: return@onMainBlocking true
         runCatching {
-            (context.getSystemService(Context.WINDOW_SERVICE) as WindowManager).removeView(view)
+            // Remove from the display-bound window manager, not the activity's:
+            // the view was added to that one.
+            (windowContext?.getSystemService(Context.WINDOW_SERVICE) as? WindowManager)
+                ?.removeView(view)
             view.disposeComposition()
             composeView = null
             windowContext = null
