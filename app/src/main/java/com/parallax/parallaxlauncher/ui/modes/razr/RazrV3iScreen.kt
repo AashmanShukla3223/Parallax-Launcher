@@ -108,7 +108,7 @@ import com.parallax.parallaxlauncher.ui.media.MediaKind
 import com.parallax.parallaxlauncher.ui.media.MediaRepository
 import com.parallax.parallaxlauncher.ui.media.NowPlayingRepository
 import com.parallax.parallaxlauncher.ui.media.Transport
-import com.parallax.parallaxlauncher.ui.media.rememberFoldedShut
+import com.parallax.parallaxlauncher.ui.media.rememberFoldState
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrMessageMenu
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrNotificationAlert
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrPixelScreen
@@ -229,12 +229,13 @@ fun RazrV3iScreen(
     var tracks by remember { mutableStateOf(emptyList<MediaItem>()) }
     // Folded shut like a Z Flip. When true the launcher owns the closed-flip
     // screen and shows the passive cover takeover instead of the handset UI.
-    val foldedShut by rememberFoldedShut()
-    var coverTakeover by rememberSaveable { mutableStateOf(false) }
-    // Entering the takeover is automatic on a real fold, but the V3i's own
-    // hinge has no FoldingFeature, so closing the flip by hand sets it too.
-    // Either way the cover screen is the one thing showing.
-    val coverActive = foldedShut || coverTakeover || flip <= 0.002f
+    //
+    // On a real foldable the hinge decides, and only the hinge: the takeover has
+    // to end when the device is unfolded, and nothing else on the device can
+    // signal that. Without a hinge -- which is what the V3i's drawn flip looks
+    // like to the OS -- closing the flap is the equivalent gesture.
+    val fold by rememberFoldState()
+    val coverActive = if (fold.foldable) fold.foldedShut else flip <= 0.002f
 
     fun loadLibrary() {
         mediaScope.launch {
@@ -721,16 +722,6 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
             }
         }
         tonePlayer.playDtmf(ch)
-        // The closed-flip takeover is passive by design: nothing on the cover
-        // screen responds, so '*' is the single way out and it hands back to the
-        // system lock screen, exactly as the globe key already does when the
-        // handset is locked.
-        if (coverActive && ch == '*') {
-            tonePlayer.playRazrChirp()
-            coverTakeover = false
-            requestSystemUnlock()
-            return
-        }
         if (locked) {
             // The in-app lock panel and the separate 4-digit RAZR unlock code are
             // both gone. There is exactly one way in: '*' hands off to the real

@@ -25,14 +25,17 @@ import androidx.compose.ui.unit.sp
  *
  * ## Deliberately passive
  *
- * Nothing here accepts a touch. A cover screen is a few centimetres across and
- * you cannot meaningfully drive a player with a fingertip on it; the real RAZR's
- * external display was equally inert, and it simply showed what was playing.
+ * Nothing here accepts a touch, and there is **no on-screen exit**. The way out
+ * is physical: unfold the device, or tap the V3i's hinge. A cover screen is a
+ * few centimetres across and no player is meaningfully driven with a fingertip
+ * on one; the real RAZR's external display was equally inert.
  *
- * The way out is `*` on the keypad, which hands back to the system lock screen
- * exactly as the globe key already does when the handset is locked. That is
- * mirrored in `RazrV3iScreen`: this is not a second way to reach the player,
- * it is a display that gets out of the way.
+ * There is a trap worth naming, because it looked like a missing feature rather
+ * than a missing key. `*` was originally specified as the exit -- "like the web
+ * button when locked". It cannot work: a closed flip surface has no keypad.
+ * `*` lives on the lower shell, which a closed flip hides entirely, so on both
+ * the Z Flip cover and the V3i's closed shell the key simply does not exist.
+ * The exit is the fold and nothing else.
  *
  * ## Why this is not the V3i cover panel
  *
@@ -73,14 +76,6 @@ fun CoverNowPlaying(
                     fontSize = 10.sp,
                     fontFamily = FontFamily.SansSerif,
                     textAlign = TextAlign.Center,
-                )
-                Spacer(Modifier.padding(6.dp))
-                Text(
-                    "PRESS * TO EXIT",
-                    color = ItunesSkin.MetalEdgeLo,
-                    fontSize = 9.sp,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
                 )
             }
             return@Box
@@ -167,18 +162,6 @@ fun CoverNowPlaying(
                     strokeWidth = size.height * 0.22f,
                 )
             }
-
-            Text(
-                "PRESS * TO EXIT",
-                color = ItunesSkin.MetalEdgeLo,
-                fontSize = 9.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 5.dp),
-            )
         }
     }
 }
