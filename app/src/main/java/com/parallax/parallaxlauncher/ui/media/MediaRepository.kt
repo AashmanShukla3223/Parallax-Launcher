@@ -1,5 +1,6 @@
 package com.parallax.parallaxlauncher.ui.media
 
+import android.util.Log
 import android.content.ContentUris
 import android.content.Context
 import android.database.Cursor
@@ -57,6 +58,12 @@ class MediaRepository(private val context: Context) {
             kindsFor(kind).forEach { (collection, selection, kindLabel) ->
                 runCatching {
                     query(collection, selection, limit, kindLabel, out)
+                }.onFailure {
+                    // This used to be a bare runCatching, so a thrown query
+                    // produced an empty library with nothing in logcat to say
+                    // why. On device it showed "Add some music" on a phone with
+                    // two indexed tracks and a granted READ_MEDIA_AUDIO.
+                    Log.w("MediaRepository", "query for $kindLabel failed", it)
                 }
             }
             // Newest first, so a recents-first browser is the default without a
@@ -163,7 +170,17 @@ class MediaRepository(private val context: Context) {
             val sizeCol = col("_size")
             val dateCol = col("date_added")
 
-            if (idCol < 0 || titleCol < 0) return
+            if (idCol < 0 || titleCol < 0) {
+                // Silent no-op when the projection did not contain what we
+                // asked for by name. Logged because "the library is empty" is
+                // otherwise indistinguishable from "you have no music".
+                Log.w(
+                    "MediaRepository",
+                    "$kindLabel projection missing columns: id=$idCol title=$titleCol " +
+                        "projection=${projection.joinToString()}",
+                )
+                return
+            }
 
             while (c.moveToNext() && out.size < limit) {
                 val id = c.getLong(idCol)
