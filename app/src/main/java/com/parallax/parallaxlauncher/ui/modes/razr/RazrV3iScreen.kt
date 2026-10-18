@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Surface
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
@@ -102,6 +103,7 @@ import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrNoSimNotice
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrSecretCodeList
 import com.parallax.parallaxlauncher.ui.media.ItunesLibrary
 import com.parallax.parallaxlauncher.ui.media.ItunesNowPlaying
+import com.parallax.parallaxlauncher.ui.media.CoverDisplayOverlay
 import com.parallax.parallaxlauncher.ui.media.CoverNowPlaying
 import com.parallax.parallaxlauncher.ui.media.MediaItem
 import com.parallax.parallaxlauncher.ui.media.MediaKind
@@ -247,8 +249,23 @@ fun RazrV3iScreen(
     // screen while the panel rendered on the inner display, which the system
     // had switched off.
     if (coverActive) {
-        CoverNowPlaying(transport)
+        // On real foldables the activity is not relocated to the cover display
+        // by the platform, so the takeover is presented there as a window
+        // instead. Tried only when there is a cover display to draw on; the V3i's
+        // own simulated flip keeps using this layout.
+        if (fold.foldable) {
+            CoverDisplayOverlay.present(context) {
+                Surface(Modifier.fillMaxSize()) { CoverNowPlaying(transport) }
+            }
+        } else {
+            CoverNowPlaying(transport)
+        }
         return
+    }
+    // Unfolded, or on a device with no cover display: take the window down if
+    // it is up, or it would outlive the fold.
+    LaunchedEffect(coverActive) {
+        if (!coverActive && CoverDisplayOverlay.isShowing) CoverDisplayOverlay.dismiss(context)
     }
 
     fun loadLibrary() {
