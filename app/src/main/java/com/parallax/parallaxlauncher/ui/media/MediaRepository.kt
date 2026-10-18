@@ -137,9 +137,22 @@ class MediaRepository(private val context: Context) {
         // MediaColumns does not resolve either, and these names are the part of
         // MediaStore that is genuinely stable and public. The per-kind
         // projections above keep the typed constants, which do resolve.
+        // No LIMIT in the sort order. It used to read
+        // "date_added DESC LIMIT $limit" and MediaProvider rejects that outright:
+        //
+        //   java.lang.IllegalArgumentException: Invalid token LIMIT
+        //
+        // so every query threw and the library was permanently empty. The
+        // sortOrder grammar takes sort keys, not a row limit. Truncating is
+        // already done in Kotlin by take(limit) below, so the clause was doing
+        // nothing except breaking the query.
+        //
+        // The Bundle overload with QUERY_ARG_LIMIT is the modern way to push
+        // the limit into the provider, but not every provider honours it and a
+        // silently-ignored limit is harder to notice than none.
         val cursor: Cursor? = context.contentResolver.query(
             collection, projection, selection, args,
-            "date_added DESC LIMIT $limit",
+            "date_added DESC",
         )
         cursor?.use { c ->
             fun col(name: String) = c.getColumnIndex(name)
