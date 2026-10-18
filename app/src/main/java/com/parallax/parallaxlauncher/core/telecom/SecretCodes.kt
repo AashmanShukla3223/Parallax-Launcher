@@ -1,5 +1,6 @@
 package com.parallax.parallaxlauncher.core.telecom
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -97,7 +98,10 @@ object SecretCodes {
         // not a browser or anything else that also claims tel: links.
         return try {
             if (foreign != null) {
-                intent.component = foreign.activityInfo
+                // ResolveInfo.activityInfo is ActivityInfo; Intent.component
+                // wants a ComponentName, which it does not convert implicitly.
+                intent.component =
+                    ComponentName(foreign.activityInfo.packageName, foreign.activityInfo.name)
             } else if (intent.resolveActivity(context.packageManager) == null) {
                 Log.w("SecretCodes", "no dialer available for $code")
                 return false
