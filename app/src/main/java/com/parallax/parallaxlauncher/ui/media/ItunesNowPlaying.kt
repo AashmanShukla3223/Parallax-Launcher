@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.weight
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -236,22 +235,22 @@ private fun TransportRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Button(Modifier.size(34.dp), active = transport.shuffle, onClick = onToggleShuffle) {
-            ItunesGlyphs.shuffle(it)
+            glyphShuffle(it)
         }
         Button(Modifier.size(34.dp), active = false, onClick = onPrevious) {
-            ItunesGlyphs.skipBack(it)
+            glyphSkipBack(it)
         }
         Button(Modifier.size(38.dp), active = false, onClick = onPlayPause) {
-            if (transport.playing) ItunesGlyphs.pause(it) else ItunesGlyphs.play(it)
+            if (transport.playing) glyphPause(it) else glyphPlay(it)
         }
         Button(Modifier.size(34.dp), active = false, onClick = onNext) {
-            ItunesGlyphs.skipForward(it)
+            glyphSkipForward(it)
         }
         Button(Modifier.size(34.dp), active = transport.repeat != RepeatMode.OFF, onClick = onCycleRepeat) {
             if (transport.repeat == RepeatMode.ONE) {
-                ItunesGlyphs.repeatOne(it)
+                glyphRepeatOne(it)
             } else {
-                ItunesGlyphs.repeat(it)
+                glyphRepeat(it)
             }
         }
     }

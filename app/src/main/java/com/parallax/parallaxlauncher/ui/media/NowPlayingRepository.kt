@@ -3,6 +3,7 @@ package com.parallax.parallaxlauncher.ui.media
 import android.content.ComponentName
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.os.Looper
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaMetadata
@@ -222,7 +223,13 @@ class NowPlayingRepository(context: Context) {
             positionMs = c.currentPosition.coerceAtLeast(0L),
             repeat = RepeatMode.of(c.repeatMode),
             shuffle = c.shuffleModeEnabled,
-            artwork = meta.artwork,
+            artwork = meta.artworkData?.let { bytes ->
+                // Media3 carries artwork as raw bytes plus a MIME type, not as
+                // a Bitmap like the platform MediaMetadata did. Decoding it here
+                // means the cost is paid once per snapshot rather than by the
+                // session on every metadata update.
+                runCatching { BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }.getOrNull()
+            },
         )
     }
 
