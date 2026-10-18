@@ -18,8 +18,17 @@ import kotlin.math.sin
 class TonePlayer {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    // STREAM_DTMF, not STREAM_MUSIC.
+    //
+    // These are keypad and UI feedback tones, which is exactly what DTMF is for,
+    // and it is routed independently of media. On STREAM_MUSIC every sound this
+    // app makes is at the mercy of whatever last grabbed the music stream --
+    // verified on a Galaxy S24 Ultra where Samsung's Smart Switch Assistant left
+    // a stale remote_submix route on STREAM_MUSIC and the entire app went
+    // silent with no error the app could see. Music is the one stream every
+    // media app fights over; DTMF is not.
     private var toneGenerator: ToneGenerator? = try {
-        ToneGenerator(AudioManager.STREAM_MUSIC, 100)
+        ToneGenerator(AudioManager.STREAM_DTMF, 100)
     } catch (_: Exception) {
         null
     }
@@ -122,10 +131,12 @@ class TonePlayer {
                 val bufferSizeBytes = maxOf(minSize, buffer.size * 2)
 
                 val audioTrack = AudioTrack.Builder()
+                    // USAGE_VOICE_COMMUNICATION so this survives a hijacked music
+                    // stream, matching where the ToneGenerator above is routed.
                     .setAudioAttributes(
                         AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_MEDIA)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                            .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                             .build()
                     )
                     .setAudioFormat(
