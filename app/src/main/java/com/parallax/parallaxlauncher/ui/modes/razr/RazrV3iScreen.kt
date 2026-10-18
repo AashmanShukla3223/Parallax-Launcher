@@ -381,7 +381,9 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
                 // goHome is declared well below this one.
                 view = RazrView.STANDBY
             } else {
-                toast = "SET PARALLAX AS DIALER TO RUN CODES"
+                // No foreign dialer to hand it to. Saying so plainly beats
+                // implying the code ran.
+                toast = "NO DIALER TO RUN CODES"
             }
             return
         }

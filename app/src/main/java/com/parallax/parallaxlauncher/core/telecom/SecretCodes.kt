@@ -2,6 +2,8 @@ package com.parallax.parallaxlauncher.core.telecom
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.util.Log
 
 /**
@@ -16,12 +18,16 @@ import android.util.Log
  *
  * ## How they are delivered
  *
- * Not through `TelecomManager.placeCall`, which would try to *dial* the string.
- * The system dialer instead broadcasts
- * `android.provider.Telephony.SECRET_CODE` and the phone app listens. Only the
- * system or the current default dialer may send it — verified by trying from a
- * shell uid, which gets `SecurityException: not allowed to send broadcast
- * android.provider.Telephony.SECRET_CODE`. Parallax holds that role, so it can.
+ * Not by broadcasting, and not by calling `placeCall` — which would try to *dial*
+ * the string. A launcher cannot send `android.provider.Telephony.SECRET_CODE`
+ * itself: the action needs `MODIFY_PHONE_STATE`, a signature permission no
+ * ordinary app can hold, and `ROLE_DIALER` is an unrelated grant that does not
+ * help. Both were tried and both fail on Android 17.
+ *
+ * So the code is handed to a real dialer via `ACTION_DIAL` and that dialer
+ * decides what to do with it. That also matches what the user wants to see: the
+ * code appears in a dialer they recognise rather than vanishing into a system
+ * dialog.
  *
  * ## The table
  *
@@ -37,9 +43,6 @@ import android.util.Log
  */
 object SecretCodes {
 
-    private const val ACTION = "android.provider.Telephony.SECRET_CODE"
-    private const val EXTRA = "android_secret_code"
-
     /**
      * A secret code is `*#` … `#*` or `*#…#`. Both delimiters are required, and
      * the middle must be at least one character. That is narrow on purpose: a
@@ -52,26 +55,62 @@ object SecretCodes {
     fun detect(raw: String): String? = raw.trim().takeIf { PATTERN.matches(it) }
 
     /**
-     * Sends [code] to the phone app.
+     * Hands [code] to a dialer that can act on it.
      *
-     * Returns false when the broadcast was refused, which happens if Parallax is
-     * not currently the default dialer — the action is protected and the role is
-     * the grant. Reported rather than swallowed so the caller can say why.
+     * ## Why not broadcast it ourselves
+     *
+     * The obvious route is broadcasting
+     * `android.provider.Telephony.SECRET_CODE` directly, which is what the old
+     * stock dialer did. That is no longer available to a launcher: the action is
+     * protected by `MODIFY_PHONE_STATE`, a signature permission no ordinary app
+     * can ever hold. Verified on Android 17 —
+     *
+     *     SecurityException: Permission Denial: not allowed to send broadcast
+     *     android.provider.Telephony.SECRET_CODE from uid=…
+     *
+     * Holding `ROLE_DIALER` does not help; the role and the permission are
+     * unrelated grants. So the code is passed to a real dialer instead and that
+     * dialer decides what it does with it.
+     *
+     * ## Avoiding the loop
+     *
+     * Parallax registers for `ACTION_DIAL` with a `tel:` scheme, so it is
+     * itself a candidate handler. A plain `startActivity` would resolve back to
+     * Parallax and the code would never move. Every candidate except our own
+     * package is therefore considered, and only a foreign dialer is eligible.
      */
-    fun send(context: Context, code: String): Boolean = try {
-        context.sendBroadcast(
-            Intent(ACTION).putExtra(EXTRA, code)
-                // The phone app runs as a different uid, so it needs to be
-                // explicitly permitted to receive this.
-                .setFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
-        )
-        true
-    } catch (e: SecurityException) {
-        Log.w("SecretCodes", "not allowed to send secret code; is Parallax the default dialer?", e)
-        false
-    } catch (e: Exception) {
-        Log.w("SecretCodes", "secret code dispatch failed", e)
-        false
+    fun send(context: Context, code: String): Boolean {
+        val intent = Intent(Intent.ACTION_DIAL).apply {
+            data = Uri.fromParts("tel", code, null)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+
+        val foreign = try {
+            context.packageManager
+                .queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
+                .firstOrNull { it.activityInfo.packageName != context.packageName }
+        } catch (_: Exception) {
+            null
+        }
+
+        // Prefer the resolved foreign handler so the user lands in a dialer,
+        // not a browser or anything else that also claims tel: links.
+        return try {
+            if (foreign != null) {
+                intent.component = foreign.activityInfo
+            } else if (intent.resolveActivity(context.packageManager) == null) {
+                Log.w("SecretCodes", "no dialer available for $code")
+                return false
+            }
+            context.startActivity(intent)
+            true
+        } catch (e: SecurityException) {
+            Log.w("SecretCodes", "could not hand off $code to a dialer", e)
+            false
+        } catch (e: Exception) {
+            Log.w("SecretCodes", "handoff of $code failed", e)
+            false
+        }
     }
 
     /** One entry in the reference list. */
