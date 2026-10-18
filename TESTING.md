@@ -27,6 +27,35 @@ build signed with a *different* key — most likely a debug build. Uninstall
 that one first. Note this **deletes the app's data**, including your phonebook
 imports and any notifications it has captured.
 
+### If it says "App not installed"
+
+Known, and not a broken download. Samsung shows that one generic message for
+several different failures. In order of likelihood:
+
+1. **Play Protect blocked it.** This is the common one. The APK is self-signed
+   *and* asks for phone, contacts and camera permissions, and registers as a
+   dialer and a notification listener — that combination is what a
+   caller-spoofing app looks like, whatever the code actually does. Look for a
+   "Blocked by Play Protect" or "This app may be harmful" dialog, and use
+   **Details → More info → Install anyway**. It is a false positive.
+
+2. **Unknown sources not enabled** for the app you opened the file from —
+   your browser or file manager. Settings → Apps → Special app access →
+   Install unknown apps → pick that app → Allow.
+
+3. **Truncated download.** Check the file is **2,993,721 bytes**. If it is
+   smaller, re-download from the release page.
+
+**The reliable route, if the tap-to-install path fights you:**
+
+```
+adb install app-release.apk
+```
+
+That bypasses Play Protect's prompt entirely and prints the real reason if it
+genuinely fails. Requires USB debugging on, which is a one-time toggle in
+Settings → Developer options.
+
 ## Optional: making it your launcher
 
 The app registers as a home app and as a dialer, but **it works fine without
