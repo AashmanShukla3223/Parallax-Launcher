@@ -78,7 +78,6 @@ class MediaViewerActivity : ComponentActivity() {
         artist = item.mime,
         album = "",
         playing = false,
-        packageName = packageName,
         durationMs = 0L,
         positionMs = 0L,
     )

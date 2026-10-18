@@ -62,7 +62,7 @@ fun MediaBrowserScreen(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxSize().background(Bg)) {
-        Text("MEDIA", style = mono(20, FontWeight.Bold, 3), modifier = Modifier.padding(20.dp))
+        Text("MEDIA", style = mono(20, weight = FontWeight.Bold, ls = 3), modifier = Modifier.padding(20.dp))
         Text(
             "TAP TO CHOOSE AN APP",
             style = mono(11, Dim, ls = 2),

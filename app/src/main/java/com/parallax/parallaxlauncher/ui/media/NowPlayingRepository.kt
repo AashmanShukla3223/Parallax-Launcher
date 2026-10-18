@@ -1,9 +1,8 @@
 package com.parallax.parallaxlauncher.ui.media
 
-import android.content.ComponentName
 import android.content.Context
 import android.media.MediaMetadata
-import android.media.session.MediaSession
+import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import kotlinx.coroutines.Dispatchers
@@ -15,7 +14,6 @@ data class NowPlaying(
     val artist: String,
     val album: String,
     val playing: Boolean,
-    val packageName: String,
     val durationMs: Long,
     val positionMs: Long,
 ) {
@@ -36,67 +34,57 @@ data class NowPlaying(
 /**
  * Reads the active media session.
  *
- * Uses [MediaSessionManager.getActiveSessions], which needs the notification
- * listener permission rather than anything media-specific -- and this app
- * already registers a NotificationListenerService for Mode 7. So Now Playing
- * becomes available at the same moment the user grants notification access, with
- * no new prompt and nothing to explain.
+ * [MediaSessionManager.getActiveSessions] returns MediaControllers, not
+ * MediaSessions -- the token-based API is the one that does not require holding
+ * a session yourself. It needs notification listener permission, which this app
+ * already registers for Mode 7, so Now Playing becomes available at the same
+ * moment the user grants notification access and there is no new prompt to
+ * explain.
  *
- * Without that grant the constructor throws SecurityException. That is expected,
- * not exceptional, so it is caught here and reported as "nothing playing" rather
- * than crashing a launcher.
+ * Without that grant it throws SecurityException. That is expected rather than
+ * exceptional, so it is caught and reported as "nothing playing" instead of
+ * taking down a launcher.
  */
 class NowPlayingRepository(private val context: Context) {
 
     suspend fun current(): NowPlaying? = withContext(Dispatchers.IO) {
         val manager = context.getSystemService(Context.MEDIA_SESSION_SERVICE) as? MediaSessionManager
             ?: return@withContext null
-        // getActiveSessions() is a method with a no-arg overload, not a property
-        // -- and passing our listener component explicitly is the documented form
-        // since API 23, which also scopes the result to this app.
-        val sessions: List<MediaSession> = try {
-            manager.getActiveSessions(component(context))
+        val controllers: List<MediaController> = try {
+            manager.getActiveSessions(notificationListener)
         } catch (_: SecurityException) {
-            // Notification listener access not granted. Expected, not exceptional.
+            // Notification access not granted.
             return@withContext null
         } catch (_: Exception) {
             return@withContext null
         }
 
-        sessions
+        controllers
             .asSequence()
             .filter { it.playbackState?.state == PlaybackState.STATE_PLAYING }
+            // Most recently active wins; several apps can hold sessions at once.
             .maxByOrNull { it.playbackState?.position ?: 0L }
-            ?.toNowPlaying()
+            ?.let { c ->
+                NowPlaying(
+                    title = c.metadata?.title()?.toString().orEmpty()
+                        .ifBlank { "Unknown track" },
+                    artist = c.metadata?.artist()?.toString().orEmpty(),
+                    album = c.metadata?.album()?.toString().orEmpty(),
+                    playing = c.playbackState?.state == PlaybackState.STATE_PLAYING,
+                    durationMs = c.metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L,
+                    positionMs = c.playbackState?.position ?: 0L,
+                )
+            }
     }
 
-    private fun MediaSession.toNowPlaying(): NowPlaying {
-        val meta = metadata
-        val state = playbackState
-        val duration = meta?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
-        return NowPlaying(
-            title = meta?.title()?.toString().orEmpty().ifBlank { "Unknown track" },
-            artist = meta?.artist()?.toString().orEmpty(),
-            album = meta?.album()?.toString().orEmpty(),
-            playing = state?.state == PlaybackState.STATE_PLAYING,
-            packageName = sessionComponent?.packageName.orEmpty(),
-            durationMs = duration,
-            positionMs = state?.position ?: 0L,
+    private companion object {
+        /**
+         * Passing our own listener component scopes the result to this app and is
+         * the documented form since API 23.
+         */
+        val notificationListener = android.content.ComponentName(
+            "com.parallax.parallaxlauncher",
+            "com.parallax.parallaxlauncher.core.notifications.ParallaxNotificationListener",
         )
-    }
-
-    /** Human label for the app currently playing, or blank if it cannot be resolved. */
-    fun labelFor(pkg: String): String = try {
-        if (pkg.isBlank()) "" else context.packageManager
-            .getApplicationLabel(
-                context.packageManager.getApplicationInfo(pkg, 0)
-            ).toString()
-    } catch (_: Exception) {
-        ""
-    }
-
-    companion object {
-        fun component(context: Context): ComponentName =
-            ComponentName(context, com.parallax.parallaxlauncher.core.notifications.ParallaxNotificationListener::class.java)
     }
 }

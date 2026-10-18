@@ -144,19 +144,24 @@ class MediaRepository(private val context: Context) {
             else -> null
         }
 
+        // Raw column names. MediaStore.Media's constants are gone from the SDK and
+        // MediaColumns does not resolve either, and these names are the part of
+        // MediaStore that is genuinely stable and public. The per-kind
+        // projections above keep the typed constants, which do resolve.
         val cursor: Cursor? = context.contentResolver.query(
             collection, projection, selection, args,
-            "$DATE_ADDED DESC LIMIT $limit",
+            "date_added DESC LIMIT $limit",
         )
         cursor?.use { c ->
             fun col(name: String) = c.getColumnIndex(name)
-            val idCol = col(ID)
-            val titleCol = col(MediaStore.MediaColumns.TITLE)
-            val subCol = c.getColumnIndex(if (isImage) "_display_name" else "artist")
-            val mimeCol = col(MediaStore.MediaColumns.MIME_TYPE)
-            val durCol = if (isImage) -1 else col(DURATION)
-            val sizeCol = col(SIZE)
-            val dateCol = col(DATE_ADDED)
+            val idCol = col("_id")
+            val titleCol = col("title")
+            val subCol = c.getColumnIndex(if (isImage) "display_name" else "artist")
+            val mimeCol = col("mime_type")
+            // duration only exists on the audio and video tables.
+            val durCol = if (isImage) -1 else col("duration")
+            val sizeCol = col("_size")
+            val dateCol = col("date_added")
 
             if (idCol < 0 || titleCol < 0) return
 
