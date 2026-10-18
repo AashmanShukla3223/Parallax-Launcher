@@ -106,7 +106,14 @@ class MainActivity : ComponentActivity() {
                 return
             }
         }
-        runCatching { startActivity(Intent(Settings.ACTION_DIALER_SETTINGS)) }
+        // Settings.ACTION_DIALER_SETTINGS does not resolve against this compile SDK,
+        // the same trap as isDeviceUnlocked(). Spell the action instead.
+        runCatching {
+            startActivity(
+                Intent("android.settings.DIALER_SETTINGS")
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
