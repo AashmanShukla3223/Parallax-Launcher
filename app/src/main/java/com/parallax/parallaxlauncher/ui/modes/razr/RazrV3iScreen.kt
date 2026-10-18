@@ -376,7 +376,10 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
             dialBuffer = ""
             if (SecretCodes.send(context, code)) {
                 tonePlayer.playRazrChirp()
-                goHome()
+                // Set view directly rather than calling goHome(): local
+                // functions cannot be referenced before their declaration, and
+                // goHome is declared well below this one.
+                view = RazrView.STANDBY
             } else {
                 toast = "SET PARALLAX AS DIALER TO RUN CODES"
             }
