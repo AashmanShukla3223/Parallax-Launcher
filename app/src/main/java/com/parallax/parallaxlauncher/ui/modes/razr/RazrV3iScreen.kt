@@ -75,6 +75,7 @@ import com.parallax.parallaxlauncher.core.notifications.Headline
 import com.parallax.parallaxlauncher.core.notifications.NotificationFeed
 import com.parallax.parallaxlauncher.core.settings.Settings
 import com.parallax.parallaxlauncher.core.telecom.CallManager
+import com.parallax.parallaxlauncher.core.telecom.SecretCodes
 import com.parallax.parallaxlauncher.core.telecom.TonePlayer
 import com.parallax.parallaxlauncher.core.telecom.VintageCarrierResolver
 import com.parallax.parallaxlauncher.core.telemetry.TelemetryService
@@ -365,6 +366,23 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         haptics.thud()
         val target = number.ifBlank { lastDialed }
         if (target.isBlank()) { tonePlayer.playRazrChirp(); return }
+
+        // Engineering codes go to the phone app, not to placeCall. Checked before
+        // the no-SIM gate because `*#06#` on a SIM-less handset is precisely the
+        // thing someone needs -- it is how you find out whether the SIM is seen
+        // at all. Also checked before the permission gate: these are diagnostics,
+        // not calls, and demanding CALL_PHONE to read a dump would be wrong.
+        SecretCodes.detect(target)?.let { code ->
+            dialBuffer = ""
+            if (SecretCodes.send(context, code)) {
+                tonePlayer.playRazrChirp()
+                goHome()
+            } else {
+                toast = "SET PARALLAX AS DIALER TO RUN CODES"
+            }
+            return
+        }
+
         // Without a SIM the radio cannot carry an ordinary call. Refuse here
         // rather than letting placeCall fail silently, but never block an
         // emergency number.
