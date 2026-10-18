@@ -233,5 +233,21 @@ The working approach is to hand the code to a **foreign** dialer via `ACTION_DIA
 Two shapes exist and **both must match**: `*#06#` and `*#*#6485#*#*`. Matching only the first silently breaks everything else — those codes fail `detect()`, fall through to `placeCall`, and the app *tries to dial them*. Check the pattern against the whole table plus the false-positive cases (`*`, `#` and ordinary numbers must not match).
 
 Samsung's dialer nags "Set Phone as default phone app?" and closes itself if you decline, so the code is only usable if you act before dismissing. Do not grant that role to test Parallax's handoff — the handoff works without it.
+
+### Media transport needs Media3, not androidx.media
+
+`androidx.media` **no longer ships `MediaControllerCompat` or `MediaSessionManagerCompat`.** Depending on it compiles to nothing usable and fails as three "Unresolved reference" errors on the imports. Verified rather than assumed: the `androidx/media/media` AARs for 1.6.0, 1.7.0 and 1.8.0 were pulled and listed, and none contains `androidx/media/session/MediaControllerCompat`. All that survives in that package is `MediaButtonReceiver`.
+
+The dependency is `androidx.media3:media3-session`. Three facts that are easy to get wrong:
+
+- `MediaController.Builder` has **`setApplicationLooper`**, not `setLooper`. Without an explicit looper the bind throws, because the poll runs on a dispatcher with no thread-local `Looper`.
+- Media3's `MediaMetadata` has **no `artwork` Bitmap**. Artwork arrives as `artworkData: ByteArray` plus a MIME type and has to be decoded. The platform `MediaMetadata` used to hand over a Bitmap directly.
+- `weight` is a `RowScope`/`ColumnScope` **member**, not a top-level import, and it is available only lexically inside that scope's content lambda. A separate composable called from a `Column` does not inherit it — pass a modifier in instead.
+
+Session discovery is `MediaSessionManager.getActiveSessions(context, packageName = null, listener)` — **static**, and `null` for the package name means all packages. It needs `MEDIA_CONTENT_CONTROL` or an enabled notification listener; this app already registers `ParallaxNotificationListener`, so the grant Mode 7 asks for is the one that matters.
+
+Repeat and shuffle are the entire reason for Media3: `android.media.session.MediaController` has no `setRepeatMode` or `setShuffleMode` at all, because those are set on the *session* side and a launcher that is not the active player has no session.
+
+**The player has never been seen working with real audio.** It has only been exercised in its empty state, and there is no media file on any lab device yet. Treat the transport as unverified until it has been driven against a live session.
 - `local.properties`, `.idea/caches`, `/build` are gitignored. `.idea/misc.xml` has been committed before and shows up as unrelated noise in diffs — ignore it.
 - CI treats `main` and `master` as the integration branches; the repo is on `main`.
