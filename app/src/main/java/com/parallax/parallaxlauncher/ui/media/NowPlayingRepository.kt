@@ -65,13 +65,18 @@ class NowPlayingRepository(private val context: Context) {
             // Most recently active wins; several apps can hold sessions at once.
             .maxByOrNull { it.playbackState?.position ?: 0L }
             ?.let { c ->
+                val meta = c.metadata
+                // getString via the METADATA_KEY_ constants rather than the
+                // title()/artist()/album() helpers, which do not resolve against
+                // this SDK. Bundle access has worked on every API level.
                 NowPlaying(
-                    title = c.metadata?.title()?.toString().orEmpty()
+                    title = meta?.getString(MediaMetadata.METADATA_KEY_TITLE)
+                        .orEmpty()
                         .ifBlank { "Unknown track" },
-                    artist = c.metadata?.artist()?.toString().orEmpty(),
-                    album = c.metadata?.album()?.toString().orEmpty(),
+                    artist = meta?.getString(MediaMetadata.METADATA_KEY_ARTIST).orEmpty(),
+                    album = meta?.getString(MediaMetadata.METADATA_KEY_ALBUM).orEmpty(),
                     playing = c.playbackState?.state == PlaybackState.STATE_PLAYING,
-                    durationMs = c.metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L,
+                    durationMs = meta?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L,
                     positionMs = c.playbackState?.position ?: 0L,
                 )
             }
