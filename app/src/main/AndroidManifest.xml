@@ -68,6 +68,7 @@
             android:exported="true"
             android:label="@string/app_name"
             android:launchMode="singleTask"
+            android:resizeableActivity="true"
             android:theme="@style/Theme.ParallaxLauncher"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>

@@ -237,6 +237,20 @@ fun RazrV3iScreen(
     val fold by rememberFoldState()
     val coverActive = if (fold.foldable) fold.foldedShut else flip <= 0.002f
 
+    // The takeover owns the entire window when the device is folded shut.
+    //
+    // It cannot live inside the clamshell layout. Folded, the system relocates
+    // this activity to the cover display -- a separate 948x1048 panel -- and
+    // what is left of the handset around the panel is a D-pad, a keypad and a
+    // hinge that do not exist there. Verified on a Galaxy Z Flip8: with the
+    // takeover nested in the handset layout, folding produced a blank cover
+    // screen while the panel rendered on the inner display, which the system
+    // had switched off.
+    if (coverActive) {
+        CoverNowPlaying(transport)
+        return
+    }
+
     fun loadLibrary() {
         mediaScope.launch {
             tracks = mediaRepo.load(MediaKind.AUDIO)
@@ -1202,12 +1216,6 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
 
                         Box(Modifier.weight(1f).fillMaxWidth()) {
                             when {
-                                // The closed-flip takeover outranks everything,
-                                // including an incoming call: on a folded device
-                                // the cover screen is all there is, and the call
-                                // is still announced on it. Everything below
-                                // this is the open-flip handset.
-                                coverActive -> CoverNowPlaying(transport)
                                 isRinging -> RazrIncomingCallScreen(palette, connectedNumber, canAnswer = incomingMayAnswer)
                                 // No `locked` arm. While locked the deck shows whatever
                                 // it was on, every key is inert, and '*' opens the system
