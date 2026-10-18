@@ -59,20 +59,19 @@ object CoverDisplayOverlay {
         private set
 
     /**
-     * The cover display: any built-in INTERNAL display that is not the default.
+     * The cover display: the other built-in display.
      *
-     * Filtering on `Display.FLAG_OWN_DISPLAY_ONLY` and `TYPE_INTERNAL` keeps
-     * this off external monitors and virtual displays, which is the same filter
-     * the platform uses to decide what a "cover screen" is.
+     * Filtering by `Display.TYPE_INTERNAL` / `FLAG_OWN_DISPLAY_ONLY` would be
+     * the precise way to say this, but those constants do not resolve against
+     * compileSdk 37 — verified, not guessed. So it is done structurally
+     * instead: a clamshell has exactly two built-in panels, the activity's
+     * context is bound to the inner one, and the other one is the cover.
      */
     fun coverDisplay(context: Context): Display? {
         val dm = context.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager ?: return null
         val defaultId = context.display?.displayId ?: Display.DEFAULT_DISPLAY
         return dm.displays.firstOrNull { d ->
-            d.displayId != defaultId &&
-                d.isValid &&
-                d.type == Display.TYPE_INTERNAL &&
-                (d.flags and Display.FLAG_OWN_DISPLAY_ONLY) != 0
+            d.displayId != defaultId && d.isValid
         }
     }
 
@@ -97,7 +96,9 @@ object CoverDisplayOverlay {
                     // adding it to the default window manager lands it back on
                     // the inner screen.
                     val ctx = context.createWindowContext(
-                        display,
+                        // By display id, not by Display: the Display overload
+                        // resolves to nothing usable here.
+                        display.displayId,
                         WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                     )
                     windowContext = ctx
