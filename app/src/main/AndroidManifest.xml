@@ -25,8 +25,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA" />
     <!-- Needed to open a window on the cover display when a Z Flip is folded
-         shut. The activity is not relocated there by the platform -- Samsung
-         gives that display to its own Subscreen home -- so a window context on
+         shut. The activity is not relocated there by the platform; Samsung
+         gives that display to its own Subscreen home, so a window context on
          that Display is the only remaining route. Held to
          TYPE_APPLICATION_OVERLAY and only while folded. -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
