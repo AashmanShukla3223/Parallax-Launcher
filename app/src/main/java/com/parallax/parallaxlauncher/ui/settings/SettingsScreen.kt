@@ -284,24 +284,16 @@ fun SettingsScreen(
             }
         }
 
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("UNLOCK CODE", style = mono(12), modifier = Modifier.weight(1f))
-            Text(settings.razrUnlockCode, style = mono(13, Color.White), modifier = Modifier.weight(1f), textAlign = TextAlign.End)
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            listOf("1234", "0000", "2004").forEach { code ->
-                Text(
-                    code,
-                    style = mono(12, if (settings.razrUnlockCode == code) Color.Black else Color.White, true),
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(if (settings.razrUnlockCode == code) accent else Steel)
-                        .clickable { onChange { it.copy(razrUnlockCode = code) } }
-                        .padding(vertical = 8.dp),
-                    textAlign = TextAlign.Center,
-                )
-            }
+        // The in-app unlock code is gone: '*' hands off to the Android credential
+        // screen and the phone's own PIN is the only code. Left in place, this
+        // row would have set a value nothing reads, which is worse than absent.
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("UNLOCK", style = mono(12), modifier = Modifier.weight(1f))
+            Text("PRESS * TO USE YOUR PHONE PIN", style = mono(11, accentDim), textAlign = TextAlign.End)
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("VOICEMAIL NUMBER", style = mono(12), modifier = Modifier.weight(1f))

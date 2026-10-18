@@ -57,17 +57,35 @@ class MainActivity : ComponentActivity() {
     private lateinit var settingsRepo: SettingsRepository
     private var isDefault by mutableStateOf(false)
     private var onboarded by mutableStateOf(false)
+    private var homeLabel by mutableStateOf("Checking...")
+    private var dialerLabel by mutableStateOf("Checking...")
+    private var isDefaultDialer by mutableStateOf(false)
     private var showSettings by mutableStateOf(false)
 
     private val roleLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
             isDefault = checkDefault()
+            homeLabel = roleLabel(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME))
+            dialerLabel = roleLabel(Intent(Intent.ACTION_DIAL))
         }
 
     private fun checkDefault(): Boolean {
         val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
         return packageManager.resolveActivity(home, 0)?.activityInfo?.packageName == packageName
     }
+
+    /**
+     * The human-readable name of whatever currently holds a role.
+     *
+     * Onboarding shows this so the user can tell what they are about to replace,
+     * and confirm afterwards that the change actually took — "Phone" is the only
+     * useful thing to put next to a DIALER row, and a bare ACTIVE/STANDBY does
+     * not tell them whether the tap worked.
+     */
+    private fun roleLabel(intent: Intent): String = runCatching {
+        val ai = packageManager.resolveActivity(intent, 0)?.activityInfo ?: return "Unknown"
+        ai.loadLabel(packageManager).toString().ifBlank { ai.packageName }
+    }.getOrDefault("Unknown")
 
     private fun requestDefault() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -78,6 +96,17 @@ class MainActivity : ComponentActivity() {
             }
         }
         runCatching { startActivity(Intent(Settings.ACTION_HOME_SETTINGS)) }
+    }
+
+    private fun requestDialer() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val rm = getSystemService(RoleManager::class.java)
+            if (rm.isRoleAvailable(RoleManager.ROLE_DIALER) && !rm.isRoleHeld(RoleManager.ROLE_DIALER)) {
+                roleLauncher.launch(rm.createRequestRoleIntent(RoleManager.ROLE_DIALER))
+                return
+            }
+        }
+        runCatching { startActivity(Intent(Settings.ACTION_DIALER_SETTINGS)) }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -97,6 +126,12 @@ class MainActivity : ComponentActivity() {
         val prefs = getSharedPreferences("parallax", Context.MODE_PRIVATE)
         onboarded = prefs.getBoolean("onboarded", false)
         isDefault = checkDefault()
+        homeLabel = roleLabel(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME))
+        dialerLabel = roleLabel(Intent(Intent.ACTION_DIAL))
+        isDefaultDialer = runCatching {
+            packageManager.resolveActivity(Intent(Intent.ACTION_DIAL), 0)
+                ?.activityInfo?.packageName == packageName
+        }.getOrDefault(false)
 
         setContent {
             val s by settingsRepo.state.collectAsState()
@@ -112,6 +147,12 @@ class MainActivity : ComponentActivity() {
                     !onboarded -> OnboardingScreen(
                         isDefaultHome = isDefault,
                         onSetDefault = ::requestDefault,
+                        homeLabel = homeLabel,
+                        isDefaultDialer = isDefaultDialer,
+                        onSetDialer = ::requestDialer,
+                        dialerLabel = dialerLabel,
+                        mode = s.mode,
+                        onMode = { m -> settingsRepo.update { it.copy(mode = m) } },
                         onFinish = {
                             prefs.edit().putBoolean("onboarded", true).apply()
                             onboarded = true

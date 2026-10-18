@@ -109,7 +109,7 @@ import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrStatusGlyphs
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrTitleBar
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrThemeScreen
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrToast
-import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrUnlockScreen
+
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrUpperShell
 import com.parallax.parallaxlauncher.ui.modes.razr.games.Nav
 import com.parallax.parallaxlauncher.ui.modes.razr.games.RAZR_GAMES
@@ -189,8 +189,7 @@ fun RazrV3iScreen(
     // already unlocked, and fall back to the code when it is.
     val keyguard = remember { context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager }
     var locked by rememberSaveable { mutableStateOf(keyguard?.isKeyguardLocked() != false) }
-    var unlockEntry by rememberSaveable { mutableStateOf("") }
-    var unlockError by rememberSaveable { mutableStateOf<String?>(null) }
+    
 
     var view by rememberSaveable { mutableStateOf(RazrView.STANDBY) }
     var menuIndex by rememberSaveable { mutableIntStateOf(0) }
@@ -331,14 +330,12 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
     val credentialLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
+        // Cancel just leaves the deck locked and as it was. Nothing to report,
+        // now that there is no in-app code entry to annotate.
         if (result.resultCode == android.app.Activity.RESULT_OK) {
             locked = false
-            unlockEntry = ""
-            unlockError = null
             view = RazrView.STANDBY
             tonePlayer.playRazrChirp()
-        } else {
-            unlockError = "CANCELLED"
         }
     }
 
@@ -543,9 +540,10 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
             )
         }.getOrNull()
         if (intent == null) {
-            // No screen lock configured, so there is nothing to confirm.
+            // No screen lock configured, so there is nothing to confirm. Treat the
+            // deck as unlocked rather than leaving it permanently dead behind a
+            // key that no longer does anything.
             locked = false
-            unlockError = null
             view = RazrView.STANDBY
             tonePlayer.playRazrChirp()
             return
@@ -554,7 +552,6 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
             .onFailure {
                 // Device refused to show it (e.g. no credential set after all).
                 locked = false
-                unlockError = null
                 view = RazrView.STANDBY
             }
     }
@@ -651,27 +648,14 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         }
         tonePlayer.playDtmf(ch)
         if (locked) {
-            // '*' opens the real Android lock screen: swipe up, enter the PIN.
+            // The in-app lock panel and the separate 4-digit RAZR unlock code are
+            // both gone. There is exactly one way in: '*' hands off to the real
+            // Android credential screen, where they type the PIN they already
+            // use. A second code to forget, on a phone that already has a lock
+            // screen, was strictly worse than deferring to the system's.
             if (ch == '*') {
                 tonePlayer.playRazrChirp()
                 requestSystemUnlock()
-                return
-            }
-            if (ch.isDigit()) {
-                unlockEntry += ch
-                view = RazrView.UNLOCK
-                if (unlockEntry.length >= 4) {
-                    if (unlockEntry == settings.razrUnlockCode) {
-                        locked = false
-                        unlockEntry = ""
-                        unlockError = null
-                        view = RazrView.STANDBY
-                        tonePlayer.playRazrChirp()
-                    } else {
-                        unlockError = "WRONG CODE"
-                        unlockEntry = ""
-                    }
-                }
             }
             return
         }
@@ -1039,7 +1023,12 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
                         Box(Modifier.weight(1f).fillMaxWidth()) {
                             when {
                                 isRinging -> RazrIncomingCallScreen(palette, connectedNumber, canAnswer = incomingMayAnswer)
-                                locked -> RazrUnlockScreen(palette, unlockError)
+                                // No `locked` arm. While locked the deck shows whatever
+                                // it was on, every key is inert, and '*' opens the system
+                                // credential screen. Suppressing the panel means a
+                                // false-positive isKeyguardLocked() leaves a dead but
+                                // honest deck rather than a screen asking for a code
+                                // that can no longer be entered.
                                 else -> ActiveView(
                                     view = view,
                                     palette = palette,
@@ -1168,7 +1157,11 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
                         when {
                             isRinging -> { haptics.thud(); answerOrRefuse() }
                             view == RazrView.IN_CALL -> CallManager.hold(!isOnHold)
-                            locked -> { view = RazrView.UNLOCK; unlockEntry = ""; unlockError = null }
+                            // While locked there is no in-app unlock screen to
+                            // navigate to, so offer the system credential prompt
+                            // directly. Previously these arms switched the view to
+                            // a code entry that no longer exists.
+                            locked -> { tonePlayer.playRazrChirp(); requestSystemUnlock() }
                             else -> startCall(dialBuffer, permLauncher, roleLauncher)
                         }
                     },
@@ -1176,16 +1169,16 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
                         when {
                             isRinging -> { haptics.thud(); CallManager.reject() }
                             view == RazrView.IN_CALL -> { CallManager.hangUp(); goHome() }
-                            locked -> { view = RazrView.STANDBY; unlockEntry = "" }
+                            locked -> { tonePlayer.playRazrChirp(); requestSystemUnlock() }
                             else -> { tonePlayer.playBusy(); dialBuffer = ""; goHome() }
                         }
                     },
                     onGlobe = {
-                        if (locked) { view = RazrView.UNLOCK; unlockEntry = "" } else openBrowser()
+                        if (locked) { tonePlayer.playRazrChirp(); requestSystemUnlock() } else openBrowser()
                     },
                     onEnvelope = {
                         tonePlayer.playRazrChirp()
-                        if (locked) { view = RazrView.UNLOCK; unlockEntry = ""; unlockError = null }
+                        if (locked) { requestSystemUnlock() }
                         else { view = RazrView.INBOX; listIndex = 0 }
                     },
                     onVoice = {
@@ -1631,7 +1624,7 @@ private fun titleFor(view: RazrView, isRinging: Boolean, currentGameTitle: Strin
     view == RazrView.GAMES -> "Games"
     view == RazrView.GAME -> currentGameTitle
     view == RazrView.MAIN_MENU -> "Main Menu"
-    view == RazrView.UNLOCK -> "Unlock"
+    
     view == RazrView.NOTEPAD -> "Notepad"
     view == RazrView.DATEBOOK -> "Datebook"
     view == RazrView.VOICE_DIAL -> "Voice Dial"
