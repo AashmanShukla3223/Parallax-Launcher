@@ -1,7 +1,7 @@
 # Parallax Launcher - Style 7: Motorola RAZR V3i (Synergy OS)
 
 > **Design Persona:** Motorola RAZR V3i (2005/2006) / Moto Synergy OS / Laser-Etched Clamshell.
-> **Vibe:** Aircraft-grade spun aluminum, electro-luminescent cobalt-blue keypad glow, classic 2G/GPRS status bars, vintage carrier branding (Jio -> Reliance Communications, Vi -> Hutch), 9-icon Synergy main menu, and tactile D-Pad navigation.
+> **Vibe:** Aircraft-grade spun aluminum, electro-luminescent cobalt-blue keypad glow, classic 2G/GPRS status bars, vintage carrier branding (Jio -> Reliance Communications, Vi -> Hutch), an installed-app main menu, and tactile D-Pad navigation.
 
 ---
 
@@ -34,18 +34,19 @@
      - Center: Menu
    - Bottom Softkey Bar: `[ Message ]` • `[ Menu ]` • `[ Contacts ]`.
 
-2. **Motorola 9-Icon Synergy Main Menu:**
-   - 3x3 Grid with classic icons:
+2. **Installed-App Main Menu:**
+   - 3-column, scrollable grid of the apps actually installed on the device, drawn with their real launcher icons.
+   - D-Pad navigable with sound effects and an animated highlight badge; SELECT opens the highlighted app.
+   - The stock 9-icon Synergy feature menu is kept one press away on the right soft key (`PHONE`), with `APPS` returning to the installed-app grid:
      1. Phonebook
      2. Recent Calls
      3. Messages
-     4. Games & Apps (Opens full app drawer)
+     4. Games
      5. Multimedia
      6. WebAccess
      7. Tools / Calculator
      8. Settings
      9. Camera
-   - D-Pad navigable with sound effects and animated highlight box.
 
 3. **Laser-Cut Electro-Luminescent Keypad:**
    - Chemically etched nickel-plated sheet metal with cyan-blue luminescent backlit grooves (`#00E5FF`).

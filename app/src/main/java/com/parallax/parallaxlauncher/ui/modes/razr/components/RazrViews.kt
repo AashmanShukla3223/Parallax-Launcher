@@ -20,21 +20,30 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -42,6 +51,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.graphics.drawable.toBitmap
 import com.parallax.parallaxlauncher.core.model.AppInfo
 import com.parallax.parallaxlauncher.core.notifications.Headline
 import com.parallax.parallaxlauncher.core.notifications.Intercepted
@@ -52,6 +62,8 @@ import com.parallax.parallaxlauncher.ui.modes.razr.RazrIconTints
 import com.parallax.parallaxlauncher.ui.modes.razr.RazrMenuItem
 import com.parallax.parallaxlauncher.ui.modes.razr.RazrOperators
 import com.parallax.parallaxlauncher.ui.modes.razr.RazrPalette
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -347,6 +359,143 @@ private fun IconCell(
             align = TextAlign.Center,
             maxLines = 2,
         )
+    }
+}
+
+/**
+ * The main menu: the apps actually installed on the device.
+ *
+ * The stock V3i's nine fixed icons describe a 2005 handset, not the phone this
+ * launcher is running on. This grid shows every launchable app with its real
+ * icon instead, three to a row like the original menu, and scrolls when there
+ * are more than fit. Selection is drawn exactly as [RazrIconGrid] draws it -- a
+ * navy badge with the label underneath -- so the screen still belongs to the
+ * handset.
+ */
+@Composable
+fun RazrAppGrid(
+    palette: RazrPalette,
+    apps: List<AppInfo>,
+    selectedIndex: Int,
+    modifier: Modifier = Modifier,
+) {
+    if (apps.isEmpty()) {
+        Box(
+            modifier.fillMaxSize().background(palette.field),
+            contentAlignment = Alignment.Center,
+        ) {
+            T(
+                text = "NO APPS FOUND",
+                color = palette.inkDim,
+                size = 13.sp,
+                align = TextAlign.Center,
+            )
+        }
+        return
+    }
+
+    val safe = selectedIndex.coerceIn(0, apps.lastIndex)
+    val state = rememberLazyGridState()
+
+    // Keep the highlight on screen without scrolling on every key press: move
+    // only when the selection leaves the visible window, and bring it to the
+    // nearest edge rather than jumping it to the top.
+    LaunchedEffect(safe) {
+        val visible = state.layoutInfo.visibleItemsInfo
+        if (visible.isEmpty()) {
+            // First composition (or returning to the menu): the grid has not
+            // been measured yet, so there is no visible window to reason about.
+            // Put the remembered selection on screen before anything is drawn.
+            if (safe > 0) state.scrollToItem(safe)
+            return@LaunchedEffect
+        }
+        val first = visible.first().index
+        val last = visible.last().index
+        when {
+            safe < first -> state.animateScrollToItem(safe)
+            safe > last -> {
+                // Whole rows only, so the newly visible row is not cut in half.
+                val target = ((safe - (last - first + 1) + 1).coerceAtLeast(0) / 3) * 3
+                state.animateScrollToItem(target)
+            }
+        }
+    }
+
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(3),
+        state = state,
+        modifier = modifier
+            .fillMaxSize()
+            .background(palette.fieldAlt)
+            .padding(3.dp),
+    ) {
+        gridItemsIndexed(apps, key = { _, app -> app.packageName }) { index, app ->
+            AppCell(palette, app, index == safe)
+        }
+    }
+}
+
+@Composable
+private fun AppCell(
+    palette: RazrPalette,
+    app: AppInfo,
+    selected: Boolean,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(1.5.dp)
+            .clip(RoundedCornerShape(3.dp))
+            .background(if (selected) palette.badgeFill else Color.Transparent)
+            .padding(horizontal = 2.dp, vertical = 3.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        // Fixed slot: the selected icon grows but the cell does not, so moving
+        // the highlight never re-measures the whole grid.
+        Box(Modifier.size(32.dp), contentAlignment = Alignment.Center) {
+            AppIcon(app, Modifier.size(if (selected) 32.dp else 28.dp))
+        }
+        Spacer(Modifier.height(1.dp))
+        T(
+            text = app.label,
+            color = if (selected) palette.badgeInk else palette.ink,
+            size = 9.2.sp,
+            weight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            align = TextAlign.Center,
+            maxLines = 2,
+        )
+    }
+}
+
+/**
+ * Loads the app's real launcher icon off the main thread.
+ *
+ * Icons are resolved per visible cell rather than for the whole app list: a
+ * launcher only needs the tiles the user can actually see, and scrolling then
+ * costs nothing for apps that never appear. A generic folder glyph stands in
+ * while the icon is loading (or if the package disappears mid-load).
+ */
+@Composable
+private fun AppIcon(app: AppInfo, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val icon by produceState<ImageBitmap?>(initialValue = null, app.packageName) {
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                context.packageManager.getApplicationIcon(app.packageName)
+                    .toBitmap(128, 128)
+                    .asImageBitmap()
+            }.getOrNull()
+        }
+    }
+    icon?.let { bitmap ->
+        Image(
+            bitmap = bitmap,
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = modifier,
+        )
+    } ?: Box(modifier, contentAlignment = Alignment.Center) {
+        RazrIconGlyph(RazrIcon.FOLDER, RazrIconTints.Amber, Modifier.fillMaxSize(0.8f))
     }
 }
 

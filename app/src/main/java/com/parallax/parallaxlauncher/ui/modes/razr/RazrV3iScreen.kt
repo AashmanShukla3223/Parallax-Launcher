@@ -80,6 +80,7 @@ import com.parallax.parallaxlauncher.core.telecom.TonePlayer
 import com.parallax.parallaxlauncher.core.telecom.VintageCarrierResolver
 import com.parallax.parallaxlauncher.core.telemetry.TelemetryService
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrAboutScreen
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrAppGrid
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrCoverInCall
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrCoverIncomingCall
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrCoverLocked
@@ -204,6 +205,7 @@ fun RazrV3iScreen(
 
     var view by rememberSaveable { mutableStateOf(RazrView.STANDBY) }
     var menuIndex by rememberSaveable { mutableIntStateOf(0) }
+    var phoneMenuIndex by rememberSaveable { mutableIntStateOf(0) }
     var subIndex by rememberSaveable { mutableIntStateOf(0) }
     var listIndex by rememberSaveable { mutableIntStateOf(0) }
     var dialBuffer by rememberSaveable { mutableStateOf("") }
@@ -211,6 +213,12 @@ fun RazrV3iScreen(
     var toast by rememberSaveable { mutableStateOf<String?>(null) }
     // Bumped on every outgoing attempt so the watchdog below re-arms per call.
     var dialAttempt by remember { mutableStateOf(0) }
+
+    // Apps can be uninstalled while the grid is on screen. Keep the selection on
+    // a real cell instead of pointing at an index the list no longer has.
+    LaunchedEffect(apps.size) {
+        if (menuIndex > apps.lastIndex) menuIndex = apps.lastIndex.coerceAtLeast(0)
+    }
 
     // Now Playing. One repository for the screen, polling on a scope that dies
     // with the composition, so leaving Mode 7 stops the tick rather than
@@ -666,6 +674,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
 
     fun goHome() {
         view = RazrView.STANDBY
+        phoneMenuIndex = 0
         subIndex = 0
         listIndex = 0
     }
@@ -683,7 +692,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
             7 -> { view = RazrView.TOOLS; subIndex = 0 }
             8 -> { view = RazrView.SETTINGS; subIndex = 0 }
             9 -> openCamera()
-            else -> { listIndex = 0; view = RazrView.APPS_LIST }
+            else -> tonePlayer.playBusy()
         }
     }
 
@@ -814,6 +823,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
             locked -> Unit
             view == RazrView.STANDBY -> cycleRingStyle(1)
             view == RazrView.MAIN_MENU -> if (menuIndex >= 3) { menuIndex -= 3; tonePlayer.playRazrChirp() }
+            view == RazrView.PHONE_MENU -> if (phoneMenuIndex >= 3) { phoneMenuIndex -= 3; tonePlayer.playRazrChirp() }
             view == RazrView.SETTINGS -> if (subIndex >= 3) { subIndex -= 3; tonePlayer.playRazrChirp() }
             view == RazrView.TOOLS -> if (subIndex >= 3) { subIndex -= 3; tonePlayer.playRazrChirp() }
             // UP from the top of the list goes back to Tools, as it does from
@@ -831,7 +841,6 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
             view == RazrView.MESSAGES -> if (subIndex > 0) { subIndex -= 1; tonePlayer.playRazrChirp() }
             view == RazrView.THEME -> if (subIndex > 0) { subIndex -= 1; tonePlayer.playRazrChirp() }
             view == RazrView.GAMES -> if (listIndex < RAZR_GAMES.lastIndex) { listIndex += 1; tonePlayer.playRazrChirp() }
-            view == RazrView.APPS_LIST -> if (listIndex > 0) { listIndex -= 1; tonePlayer.playRazrChirp() }
             view == RazrView.INBOX -> if (listIndex > 0) { listIndex -= 1; tonePlayer.playRazrChirp() }
             view == RazrView.PHONEBOOK -> if (listIndex > 0) { listIndex -= 1; tonePlayer.playRazrChirp() }
             view == RazrView.PHONEBOOK_ACTIONS ->
@@ -860,7 +869,9 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
                 tonePlayer.playRazrChirp()
             }
             view == RazrView.MAIN_MENU ->
-                if (menuIndex <= RAZR_MAIN_MENU.size - 4) { menuIndex += 3; tonePlayer.playRazrChirp() }
+                if (menuIndex + 3 <= apps.lastIndex) { menuIndex += 3; tonePlayer.playRazrChirp() }
+            view == RazrView.PHONE_MENU ->
+                if (phoneMenuIndex + 3 <= RAZR_PHONE_MENU.lastIndex) { phoneMenuIndex += 3; tonePlayer.playRazrChirp() }
             view == RazrView.SETTINGS ->
                 if (subIndex <= RAZR_SETTINGS_MENU.size - 4) { subIndex += 3; tonePlayer.playRazrChirp() }
             view == RazrView.TOOLS ->
@@ -873,8 +884,6 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
             view == RazrView.MESSAGES -> if (subIndex < 2) { subIndex += 1; tonePlayer.playRazrChirp() }
             view == RazrView.THEME ->
                 if (subIndex < RazrFinish.entries.lastIndex) { subIndex += 1; tonePlayer.playRazrChirp() }
-            view == RazrView.APPS_LIST ->
-                if (listIndex < apps.lastIndex) { listIndex += 1; tonePlayer.playRazrChirp() }
             view == RazrView.INBOX ->
                 if (listIndex < messages.lastIndex) { listIndex += 1; tonePlayer.playRazrChirp() }
             view == RazrView.PHONEBOOK ->
@@ -894,6 +903,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
             locked -> Unit
             view == RazrView.STANDBY -> { view = RazrView.INBOX; listIndex = 0 }
             view == RazrView.MAIN_MENU -> if (menuIndex % 3 > 0) { menuIndex -= 1; tonePlayer.playRazrChirp() }
+            view == RazrView.PHONE_MENU -> if (phoneMenuIndex % 3 > 0) { phoneMenuIndex -= 1; tonePlayer.playRazrChirp() }
             view == RazrView.SETTINGS -> if (subIndex % 3 > 0) { subIndex -= 1; tonePlayer.playRazrChirp() }
             view == RazrView.TOOLS -> if (subIndex % 3 > 0) { subIndex -= 1; tonePlayer.playRazrChirp() }
             // LEFT and RIGHT scrub rather than skip. On a panel this size there
@@ -912,7 +922,9 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         when {
             locked -> Unit
             view == RazrView.STANDBY -> openCamera()
-            view == RazrView.MAIN_MENU -> if (menuIndex % 3 < 2) { menuIndex += 1; tonePlayer.playRazrChirp() }
+            view == RazrView.MAIN_MENU ->
+                if (menuIndex % 3 < 2 && menuIndex + 1 <= apps.lastIndex) { menuIndex += 1; tonePlayer.playRazrChirp() }
+            view == RazrView.PHONE_MENU -> if (phoneMenuIndex % 3 < 2) { phoneMenuIndex += 1; tonePlayer.playRazrChirp() }
             view == RazrView.SETTINGS -> if (subIndex % 3 < 2) { subIndex += 1; tonePlayer.playRazrChirp() }
             view == RazrView.TOOLS -> if (subIndex % 3 < 2) { subIndex += 1; tonePlayer.playRazrChirp() }
             view == RazrView.ITUNES -> {
@@ -956,7 +968,13 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         RazrView.PHONEBOOK_ACTIONS -> runContactAction()
         // Nothing to confirm on the notice; the centre key just gets rid of it.
         RazrView.NO_SIM -> goHome()
-            RazrView.MAIN_MENU -> selectMenuItem(RAZR_MAIN_MENU[menuIndex.coerceIn(RAZR_MAIN_MENU.indices)])
+            RazrView.MAIN_MENU -> apps.getOrNull(menuIndex.coerceIn(0, apps.lastIndex.coerceAtLeast(0)))
+                ?.let { app ->
+                    tonePlayer.playRazrChirp()
+                    repo.launch(app)
+                }
+            RazrView.PHONE_MENU ->
+                selectMenuItem(RAZR_PHONE_MENU[phoneMenuIndex.coerceIn(RAZR_PHONE_MENU.indices)])
             RazrView.SETTINGS -> selectSettingsItem(RAZR_SETTINGS_MENU[subIndex.coerceIn(RAZR_SETTINGS_MENU.indices)])
             RazrView.TOOLS -> selectToolsItem(RAZR_TOOLS_MENU[subIndex.coerceIn(RAZR_TOOLS_MENU.indices)])
             // SELECT stages the code in the dial buffer rather than running it.
@@ -996,10 +1014,6 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
                 g.reset()
             }
             RazrView.GAME -> currentGame?.onNav(Nav.CENTRE)
-            RazrView.APPS_LIST -> apps.getOrNull(listIndex)?.let {
-                tonePlayer.playRazrChirp()
-                repo.launch(it)
-            }
             RazrView.INBOX -> openMessaging()
             RazrView.CALLS -> openCalls()
             RazrView.RINGTONES -> open(Intent(AndroidSettings.ACTION_SOUND_SETTINGS))
@@ -1039,6 +1053,11 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         if (locked) return
         when (view) {
             RazrView.STANDBY -> openCamera()
+            // The handset features moved off the main menu when it became the
+            // app grid. The right soft key keeps them one press away, and the
+            // same key on the phone menu returns to the apps.
+            RazrView.MAIN_MENU -> { view = RazrView.PHONE_MENU; phoneMenuIndex = 0 }
+            RazrView.PHONE_MENU -> { view = RazrView.MAIN_MENU }
             RazrView.IN_CALL -> CallManager.speaker(!isSpeaker)
             RazrView.INCOMING -> answerOrRefuse()
             RazrView.DIALING -> { dialBuffer = ""; goHome() }
@@ -1070,6 +1089,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         view == RazrView.INCOMING -> "ANSWER"
         view == RazrView.STANDBY -> "MENU"
         view == RazrView.DIALING -> "SEND"
+        view == RazrView.MAIN_MENU -> "OPEN"
         view == RazrView.ITUNES -> if (transport.playing) "PAUSE" else "PLAY"
         view == RazrView.ITUNES_LIBRARY -> "SELECT"
         else -> "SELECT"
@@ -1079,6 +1099,8 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
         view == RazrView.IN_CALL -> "SPKR"
         view == RazrView.INCOMING -> "ANSWER"
         view == RazrView.DIALING -> "CANCEL"
+        view == RazrView.MAIN_MENU -> "PHONE"
+        view == RazrView.PHONE_MENU -> "APPS"
         view == RazrView.ITUNES -> "SHUFFLE"
         view == RazrView.ITUNES_LIBRARY -> "BACK"
         view == RazrView.STANDBY -> "CLOSE FLIP"
@@ -1228,6 +1250,7 @@ val clockText = remember(now) { SimpleDateFormat("h:mm", Locale.ROOT).format(Dat
                                     apps = apps,
                                     messages = messages,
                                     menuIndex = menuIndex,
+                                    phoneMenuIndex = phoneMenuIndex,
                                     subIndex = subIndex,
                                     listIndex = listIndex,
                                     dialBuffer = dialBuffer,
@@ -1467,6 +1490,7 @@ private fun ActiveView(
     apps: List<AppInfo>,
     messages: List<Headline>,
     menuIndex: Int,
+    phoneMenuIndex: Int,
     subIndex: Int,
     listIndex: Int,
     dialBuffer: String,
@@ -1505,7 +1529,9 @@ private fun ActiveView(
 
         RazrView.DIALING -> RazrDialingScreen(palette, dialBuffer, null)
 
-        RazrView.MAIN_MENU -> RazrIconGrid(palette, RAZR_MAIN_MENU, menuIndex)
+        RazrView.MAIN_MENU -> RazrAppGrid(palette, apps, menuIndex)
+
+        RazrView.PHONE_MENU -> RazrIconGrid(palette, RAZR_PHONE_MENU, phoneMenuIndex)
 
         RazrView.SETTINGS -> RazrIconGrid(palette, RAZR_SETTINGS_MENU, subIndex)
 
@@ -1588,14 +1614,6 @@ private fun ActiveView(
             // A contact stored with no display name falls back to the digits,
             // so do not print the same string twice on the row.
             secondary = { c: RazrContact -> c.number.takeIf { it != c.name } ?: "" },
-        )
-
-        RazrView.APPS_LIST -> RazrListScreen(
-            palette = palette,
-            entries = apps,
-            selectedIndex = listIndex,
-            emptyText = "NO APPS FOUND",
-            primary = { app: AppInfo -> app.label },
         )
 
         RazrView.CALLS -> RazrListScreen(
@@ -1849,7 +1867,6 @@ private fun titleFor(view: RazrView, isRinging: Boolean, currentGameTitle: Strin
     view == RazrView.PHONEBOOK -> "Phonebook"
     view == RazrView.PHONEBOOK_ACTIONS -> "Phonebook"
     view == RazrView.NO_SIM -> "No SIM"
-    view == RazrView.APPS_LIST -> "Games & Apps"
     view == RazrView.INBOX -> "Message Inbox"
     view == RazrView.RINGTONES -> "Ring Styles"
     view == RazrView.THEME -> "Themes"
@@ -1865,6 +1882,7 @@ private fun titleFor(view: RazrView, isRinging: Boolean, currentGameTitle: Strin
     view == RazrView.GAMES -> "Games"
     view == RazrView.GAME -> currentGameTitle
     view == RazrView.MAIN_MENU -> "Main Menu"
+    view == RazrView.PHONE_MENU -> "Phone Menu"
     
     view == RazrView.NOTEPAD -> "Notepad"
     view == RazrView.DATEBOOK -> "Datebook"
