@@ -450,12 +450,16 @@ private fun AppCell(
             .padding(horizontal = 2.dp, vertical = 3.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        AppIcon(app, Modifier.size(if (selected) 27.dp else 24.dp))
+        // Fixed slot: the selected icon grows but the cell does not, so moving
+        // the highlight never re-measures the whole grid.
+        Box(Modifier.size(32.dp), contentAlignment = Alignment.Center) {
+            AppIcon(app, Modifier.size(if (selected) 32.dp else 28.dp))
+        }
         Spacer(Modifier.height(1.dp))
         T(
             text = app.label,
             color = if (selected) palette.badgeInk else palette.ink,
-            size = 8.8.sp,
+            size = 9.2.sp,
             weight = if (selected) FontWeight.Bold else FontWeight.Normal,
             align = TextAlign.Center,
             maxLines = 2,
