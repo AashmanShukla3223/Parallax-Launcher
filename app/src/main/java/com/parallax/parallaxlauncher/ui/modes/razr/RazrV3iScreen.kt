@@ -80,6 +80,7 @@ import com.parallax.parallaxlauncher.core.telecom.TonePlayer
 import com.parallax.parallaxlauncher.core.telecom.VintageCarrierResolver
 import com.parallax.parallaxlauncher.core.telemetry.TelemetryService
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrAboutScreen
+import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrAppGrid
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrCoverInCall
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrCoverIncomingCall
 import com.parallax.parallaxlauncher.ui.modes.razr.components.RazrCoverLocked
