@@ -14,8 +14,15 @@ enum class RazrView {
     /** Dialing buffer being typed. */
     DIALING,
 
+    /** The main menu: every installed launcher app, in a scrollable icon grid. */
     MAIN_MENU,
-    APPS_LIST,
+
+    /**
+     * The handset's own nine-icon feature menu (calls, messages, phonebook,
+     * tools…). Kept off the main menu, which is now the app grid, and reached
+     * with the right soft key from it.
+     */
+    PHONE_MENU,
     MESSAGES,
     INBOX,
     CALLS,
@@ -58,13 +65,19 @@ enum class RazrView {
 
 data class RazrMenuItem(val id: Int, val title: String, val icon: RazrIcon)
 
-/** Main menu, mirroring the V3i manual's menu map. */
-val RAZR_MAIN_MENU = listOf(
+/**
+ * The V3i's own feature menu, mirroring the manual's menu map.
+ *
+ * This is no longer the launcher's main menu: that shows the apps actually
+ * installed on the device. The handset menu is still reachable from it with the
+ * right soft key, so the phone features do not disappear behind the app grid.
+ */
+val RAZR_PHONE_MENU = listOf(
     RazrMenuItem(1, "Recent Calls", RazrIcon.CALLS),
     RazrMenuItem(2, "Messages", RazrIcon.MESSAGES),
     RazrMenuItem(3, "Phonebook", RazrIcon.PHONEBOOK),
     RazrMenuItem(4, "Web Access", RazrIcon.WEB_ACCESS),
-    RazrMenuItem(5, "Games & Apps", RazrIcon.GAMES),
+    RazrMenuItem(5, "Games", RazrIcon.GAMES),
     RazrMenuItem(6, "Multimedia", RazrIcon.MULTIMEDIA),
     RazrMenuItem(7, "Tools", RazrIcon.TOOLS),
     RazrMenuItem(8, "Settings", RazrIcon.SETTINGS),
